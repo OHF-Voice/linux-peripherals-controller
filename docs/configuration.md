@@ -35,10 +35,10 @@ LPC reads the whole file at startup. A key that is not known, or a value that is
 # Brightness of the display functions, 0 to 1 (default 1)
 brightness = 0.5
 
-# Settings of a button of the device type, by its name
+# Settings of a button of the device type, by its name.
+# Every press of every button is reported to Home Assistant, whatever the role.
 [buttons.button]
 role = "mute"          # action, volume_up, volume_down, mute or user
-report_to_ha = true    # also report every press to Home Assistant (default false)
 pin = 17               # GPIO pin (BCM), when it differs from the device type
 
 # Color of a display function, #rrggbb

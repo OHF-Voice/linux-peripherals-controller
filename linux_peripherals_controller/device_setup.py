@@ -25,7 +25,6 @@ class ResolvedButton:
     name: str
     role: ButtonRole
     pin: Optional[int]
-    report_to_ha: bool
 
 
 @dataclass(frozen=True)
@@ -77,13 +76,8 @@ def resolve_device(device_type: DeviceType, config: DeviceConfig, source: str = 
 def _resolve_button(spec: ButtonSpec, config: DeviceConfig) -> ResolvedButton:
     own = config.buttons.get(spec.name)
     if own is None:
-        return ResolvedButton(spec.name, spec.role, spec.pin, False)
-    return ResolvedButton(
-        spec.name,
-        spec.role if own.role is None else own.role,
-        spec.pin if own.pin is None else own.pin,
-        bool(own.report_to_ha),
-    )
+        return ResolvedButton(spec.name, spec.role, spec.pin)
+    return ResolvedButton(spec.name, spec.role if own.role is None else own.role, spec.pin if own.pin is None else own.pin)
 
 
 def _sensor_interval(name: str, default: float, config: DeviceConfig) -> float:

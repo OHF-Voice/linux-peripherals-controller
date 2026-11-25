@@ -71,7 +71,7 @@ class TestBrightness:
 class TestButtons:
     def test_as_the_device_type_says(self):
         buttons = {b.name: b for b in resolve().buttons}
-        assert (buttons["main"].role, buttons["main"].pin, buttons["main"].report_to_ha) == (ButtonRole.ACTION, 17, False)
+        assert (buttons["main"].role, buttons["main"].pin) == (ButtonRole.ACTION, 17)
         assert buttons["side"].pin is None
 
     def test_configuration_replaces_one_value_at_a_time(self):
@@ -79,10 +79,10 @@ class TestButtons:
         main = {b.name: b for b in resolve(config).buttons}["main"]
         assert (main.role, main.pin) == (ButtonRole.MUTE, 17)
 
-    def test_configuration_can_change_the_pin_and_report_to_ha(self):
-        config = DeviceConfig(buttons={"main": ButtonConfig(pin=26, report_to_ha=True)})
+    def test_configuration_can_change_the_pin(self):
+        config = DeviceConfig(buttons={"main": ButtonConfig(pin=26)})
         main = {b.name: b for b in resolve(config).buttons}["main"]
-        assert (main.role, main.pin, main.report_to_ha) == (ButtonRole.ACTION, 26, True)
+        assert (main.role, main.pin) == (ButtonRole.ACTION, 26)
 
     def test_button_that_the_device_type_does_not_have_is_refused(self):
         with pytest.raises(DeviceConfigError) as error:
