@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional
 
 API_VERSION = "v2"
-COMMANDS = frozenset({"start_listening", "stop", "mute_on", "mute_off", "volume_up", "volume_down", "volume_set", "timer_stop", "button_pressed"})
+COMMANDS = frozenset({"start_listening", "stop", "mute_on", "mute_off", "volume_up", "volume_down", "volume_set", "timer_stop", "button_pressed", "hardware_mute_status", "hardware_mute_possible"})
 PRESS_TYPES = ("single", "double", "triple", "long")
 
 

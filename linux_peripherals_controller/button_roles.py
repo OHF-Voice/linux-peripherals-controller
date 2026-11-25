@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Mapping, Optional, Tuple
+from typing import Any, Mapping, Optional, Tuple
 
 from .lva_protocol import PRESS_TYPES
 from .lva_status import LvaStatus
@@ -32,7 +32,7 @@ class LvaCommand:
     """A command for LVA."""
 
     name: str
-    data: Optional[Mapping[str, str]] = None
+    data: Optional[Mapping[str, Any]] = None
 
 
 @dataclass(frozen=True)
