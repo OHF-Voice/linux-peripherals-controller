@@ -1,0 +1,125 @@
+[build-system]
+requires = ["setuptools>=62.3", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name        = "linux-peripherals-controller"
+license     = {text = "Apache-2.0"}
+description = "Peripheral controller (LED, button and HAT drivers) for Linux-Voice-Assistant"
+readme      = "README.md"
+authors     = [
+    {name = "The Home Assistant Authors", email = "hello@home-assistant.io"}
+]
+keywords    = ["home", "assistant", "voice", "linux", "peripherals", "led", "button"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.13.0"
+dependencies = [
+    "websockets==12",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "flake8",
+    "mypy",
+    "pylint",
+    "pytest",
+    "isort",
+    "autopep8",
+    "pytest-asyncio",
+]
+
+[project.scripts]
+linux-peripherals-controller = "linux_peripherals_controller.__main__:run"
+
+[project.urls]
+"Source Code" = "http://github.com/OHF-Voice/linux-peripherals-controller"
+
+[tool.setuptools]
+platforms = ["any"]
+zip-safe  = true
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["linux_peripherals_controller", "linux_peripherals_controller.*"]
+exclude = ["tests", "tests.*"]
+
+[tool.black]
+line-length = 200
+target-version = ['py313']
+include = '\.pyi?$'
+exclude = '''
+/(
+  \.eggs
+| \.git
+| \.hg
+| \.mypy_cache
+| \.tox
+| \.venv
+| _build
+| buck-out
+| build
+| dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 200
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+
+[tool.pylint."MESSAGES CONTROL"]
+disable = [
+  "abstract-method",
+  "cyclic-import",
+  "duplicate-code",
+  "global-statement",
+  "import-outside-toplevel",
+  "inconsistent-return-statements",
+  "locally-disabled",
+  "not-context-manager",
+  "too-few-public-methods",
+  "too-many-arguments",
+  "too-many-branches",
+  "too-many-instance-attributes",
+  "too-many-lines",
+  "too-many-locals",
+  "too-many-public-methods",
+  "too-many-return-statements",
+  "too-many-statements",
+  "too-many-boolean-expressions",
+  "unnecessary-pass",
+  "unused-argument",
+  "broad-except",
+  "too-many-nested-blocks",
+  "invalid-name",
+  "unused-import",
+  "fixme",
+  "useless-super-delegation",
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "import-error",
+  "consider-using-with",
+  "R0917",
+  "C0301",
+]
+
+[tool.pylint."DESIGN"]
+max-args = 50
+
+[tool.pylint.format]
+expected-line-ending-format = "LF"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

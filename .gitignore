@@ -1,0 +1,30 @@
+.DS_Store
+.idea
+*.log
+tmp/
+
+*.py[cod]
+*.egg
+build
+htmlcov
+
+.projectile
+.venv/
+venv/
+.tox/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+
+/dist/
+/local/
+
+# Docker
+.env
+dev.env
+version.txt
+version_githash.txt
+
+# Claude Code (local rules and notes)
+.claude/
+CLAUDE.local.md

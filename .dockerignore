@@ -1,0 +1,9 @@
+*
+
+!/pyproject.toml
+!/setup.cfg
+!/README.md
+!/docker-entrypoint.sh
+!/linux_peripherals_controller/*
+!/version.txt
+!/version_githash.txt

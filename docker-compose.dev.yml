@@ -1,0 +1,34 @@
+---
+services:
+  # Linux Peripherals Controller
+  linux-peripherals-controller:
+    container_name: linux-peripherals-controller
+    image: "${LPC_IMAGE:-ghcr.io/ohf-voice/linux-peripherals-controller-pr}:${LPC_IMAGE_TAG:-nightly}"
+    restart: unless-stopped
+    # Host network, so "localhost" reaches the peripheral API (port 6055) of LVA
+    network_mode: "host"
+    env_file: ${ENV_FILE:-.env}
+    # Hardware access (GPIO, SPI, I2C, PWM, USB) is added together with the peripheral drivers
+    #privileged: true
+    #devices:
+    #  - /dev/gpiomem:/dev/gpiomem
+    volumes:
+      # Time and zone
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      # Mount source code for development
+      - ./linux_peripherals_controller:/app/linux_peripherals_controller
+      - ./docker-entrypoint.sh:/app/docker-entrypoint.sh
+      - ./version.txt:/app/version.txt
+      - ./version_githash.txt:/app/version_githash.txt
+    # Health check for process
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "linux_peripherals_controller"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    command:
+    #  - --debug
+    #  - --additional-parameters-here
+    #  - --but-use-env-if-possible
