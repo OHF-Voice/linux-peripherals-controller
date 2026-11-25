@@ -35,6 +35,8 @@ Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA 
 | `lva_protocol.py` | Wire format: `lva_url()`, `parse_event()`, `build_command()`, `COMMANDS` (version 2 only) |
 | `lva_status.py` | `LvaStatus` (immutable) and `apply_event()`: new status plus the short signal (`pipeline_error`, `timeout`, changed volume, not the first volume) |
 | `button_roles.py` | `ButtonRole`, `decide_button_action()`: the commands for LVA (`LvaCommand`) and whether to report to Home Assistant, by role, press, `LvaStatus`, connection and child lock. `reason` is for the log |
+| `appearance.py` | `Color` (`from_hex()`), `PatternName`, `DEFAULT_COLORS` / `DEFAULT_PATTERNS`: one entry per `DisplayFunction` |
+| `device_types.py` | `DeviceType` (LEDs, buttons, sensors, offered functions, color and pattern overrides) as data, `DEVICE_TYPES`, `get_device_type()` (raises `UnknownDeviceType` with the known names). Opens no hardware |
 | `display.py` | `DisplayFunction`, `select_display_function()` (fixed priority order), `start_transient()` for the short functions |
 | `util.py` | `get_version()` (reads `version.txt`) |
 
