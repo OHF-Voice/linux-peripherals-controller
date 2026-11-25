@@ -2,7 +2,7 @@
 
 This page describes what Linux Peripherals Controller (LPC) does, from the user's point of view. It is the source of truth for the behavior of LPC: code changes follow it, and a change of the behavior updates it.
 
-> **Status:** specified here, implementation follows. Until then LPC only logs its version and exits.
+> **Status:** specified here, implementation follows. Implemented so far: the connection to LVA (version 2, reconnecting) and the choice of the display function. Without a device driver the display function is only logged at debug level, and there are no Home Assistant entities, buttons, device types or device configuration yet.
 
 ---
 
@@ -223,6 +223,6 @@ LPC does not tell LVA anything about Home Assistant entities, the light, sensors
 | Hardware cannot be opened (pins, bus, USB device) | LPC logs the error and exits with a non-zero status, so Docker (`restart: unless-stopped`) or systemd restarts it. |
 | LVA is not reachable | LPC keeps running and retries, see [Bridge to LVA](#bridge-to-lva). |
 | Home Assistant is not connected | Nothing changes for the hardware. Buttons and LEDs work as before. |
-| Peripheral API of LVA has no version 2 | LPC logs the versions LVA supports and retries. |
+| Peripheral API of LVA has no version 2 | LPC logs once that LVA does not offer version 2 (the HTTP status it answered) and retries. |
 
 > **Note:** This page was written from the planned program logic. Behavior that depends on hardware (LED timing, button debounce, sensor values) depends on the device.

@@ -7,7 +7,7 @@ One service for the hardware peripherals (LED rings, buttons, HAT boards, USB de
 It connects to the [peripheral WebSocket API](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/peripheral_api/readme.md) of LVA and runs as a Docker container next to it. It is meant to replace the separate peripheral scripts in the `examples/` folder of LVA.
 
 > [!NOTE]
-> This repository only contains the project scaffolding so far. The peripheral drivers are added later.
+> LPC is under construction. So far it connects to LVA and works out what the LEDs would show. The peripheral drivers are added later.
 
 [![A project from the Open Home Foundation](https://www.openhomefoundation.org/badges/ohf-project.png)](https://www.openhomefoundation.org/)
 
