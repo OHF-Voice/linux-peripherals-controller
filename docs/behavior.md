@@ -36,6 +36,7 @@ LPC runs the hardware of one device: LEDs, buttons and sensors. Two connections 
 - **LPC is its own ESPHome device in Home Assistant.** LEDs, button presses, child lock and sensors reach Home Assistant through LPC, whether LVA runs or not. LVA publishes none of this.
 - **The connection to LVA is only a bridge.** It carries the state of the assistant to LPC (so the LEDs can show it) and a few commands back (so buttons can control the assistant). See [Bridge to LVA](#bridge-to-lva).
 - **LPC works without LVA.** If LVA is not reachable, LPC keeps retrying, the Home Assistant entities keep working and the LEDs show that there is no connection.
+- **The two paths are independent. This is the rule for every component.** What a component reports (a button press, a sensor reading, the state of the light) goes to each destination on its own: to LVA over the bridge and to Home Assistant over ESPHome. Whether one destination can be reached never changes what is sent to the other. A lost connection to LVA does not stop the reports to Home Assistant, and a lost connection to Home Assistant does not stop the commands to LVA. Nothing waits for the other path, and what cannot be delivered is dropped and logged, not held back.
 
 ---
 
@@ -145,7 +146,7 @@ For the roles other than `user` only the **single press** has an effect. A butto
 | `listening`, `thinking`, `tts` or `announce` | `stop` |
 | Anything else | `start_listening` |
 
-The state comes from LVA. Without a connection to LVA, a press does nothing towards LVA and is logged.
+The state comes from LVA. Without a connection to LVA, a press does nothing towards LVA and is logged. The report to Home Assistant does not depend on it: a press that is to be reported (the role `user`, or `report_to_ha`) is reported also while LVA is not connected.
 
 **Button sounds.** Every press of a button is also sent to LVA as `button_pressed` with its press type, so LVA plays the sound for it (double, triple and long press; a single press has none). This applies to all roles. A press that LPC ignores (child lock, no connection to LVA) is not sent.
 
@@ -204,7 +205,7 @@ LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version
 | `timer_remaining_time`, `timer_remaining_percentage` | The amount shown by `timer_active`. A device type may show the seconds instead of the percentage. |
 | `media_player_status` | Kept as state. No function in the default setup, a device type may use it. |
 
-**From LPC to LVA** (what buttons do): `start_listening`, `stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `timer_stop` and `button_pressed`, as described for the roles above. Nothing else is sent. A command is dropped and logged when LVA is not connected.
+**From LPC to LVA** (what buttons do): `start_listening`, `stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `timer_stop` and `button_pressed`, as described for the roles above. Nothing else is sent. A command is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
 
 LPC does not tell LVA anything about Home Assistant entities, the light, sensors or the child lock.
 
