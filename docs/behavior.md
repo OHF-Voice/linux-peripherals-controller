@@ -132,13 +132,13 @@ Every button has a **role**. The device type gives each button a default role, a
 | Role | What a press does |
 |------|-------------------|
 | `action` | Controls the assistant by its state, see below. |
-| `volume_up`, `volume_down` | Sends `volume_up` / `volume_down` to LVA. Held down, it repeats after 0.5 s every 0.25 s, so these buttons have no long press. |
+| `volume_up`, `volume_down` | Sends `volume_up` / `volume_down` to LVA. Held down, it repeats after 0.5 s every 0.25 s until the button is released. Held for 1 s, it is also a long press (see below). |
 | `mute` | Toggles the microphone mute (`mute_on` / `mute_off`). |
 | `user` | Has no function. The press is only reported (to Home Assistant, as for every button) and sent to LVA for its sound. |
 
 For the roles other than `user` only the **single press** has an effect.
 
-**Every press is reported to Home Assistant.** Every button, whatever its role, reports every press (single, double, triple and long) to Home Assistant, see [Home Assistant](#home-assistant). This does not depend on LVA (connected or not), on the child lock or on the function of the button. The `repeat` of a volume button is not a press and is not reported.
+**Every press is reported to Home Assistant.** Every button, whatever its role, reports every press (single, double, triple and long) to Home Assistant, see [Home Assistant](#home-assistant). This does not depend on LVA (connected or not), on the child lock or on the function of the button. The `repeat` of a volume button is not a press and is not reported. A volume button that is held for 1 s also reports one `long` press while it goes on repeating.
 
 **The `action` role.** One button does the sensible thing for what the assistant is doing right now:
 

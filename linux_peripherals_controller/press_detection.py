@@ -1,4 +1,4 @@
-"""Press types of a button: single, double, triple and long, and the repeat while it is held.
+"""Press types of a button: single, double, triple and long, and optionally the repeat while it is held.
 
 A driver only knows when a button goes down and up. The press type follows from the timing, like on the Home Assistant Voice PE
 center button: a press counts as single, double or triple when no further press follows within a short gap, and as long when the
@@ -25,8 +25,8 @@ class DetectionConfig:
     How the presses of one button are told apart.
     :param long_after: Seconds the button has to be held for a long press.
     :param gap: Seconds without another press after which single, double and triple presses are complete.
-    :param repeat_after: Seconds of holding after which ``repeat`` presses start, None if holding does not repeat. A button that
-    repeats has no long press.
+    :param repeat_after: Seconds of holding after which ``repeat`` presses start, None if holding does not repeat. The repeat
+    does not replace the long press: a button that is held long enough has both.
     :param repeat_interval: Seconds between two ``repeat`` presses.
     """
 
@@ -43,7 +43,8 @@ class ButtonState:
     down_since: Optional[float] = None
     presses: int = 0
     last_release: Optional[float] = None
-    hold_reported: bool = False
+    long_reported: bool = False
+    repeating: bool = False
     next_repeat: Optional[float] = None
 
 
@@ -73,7 +74,7 @@ def release(state: ButtonState, now: float) -> ButtonState:
     """
     if state.down_since is None:
         return state
-    if state.hold_reported:
+    if state.long_reported or state.repeating:
         return ButtonState()
     return ButtonState(presses=min(state.presses + 1, _MAX_COUNTED_PRESSES), last_release=now)
 
@@ -101,9 +102,12 @@ def next_deadline(state: ButtonState, config: DetectionConfig) -> Optional[float
     :return: The time in seconds, None if nothing is waiting.
     """
     if state.down_since is not None:
-        if not state.hold_reported:
-            return state.down_since + (config.long_after if config.repeat_after is None else config.repeat_after)
-        return state.next_repeat
+        deadlines = []
+        if not state.long_reported:
+            deadlines.append(state.down_since + config.long_after)
+        if config.repeat_after is not None:
+            deadlines.append(state.next_repeat if state.repeating and state.next_repeat is not None else state.down_since + config.repeat_after)
+        return min(deadlines) if deadlines else None
     if state.presses > 0 and state.last_release is not None:
         return state.last_release + config.gap
     return None
@@ -112,12 +116,14 @@ def next_deadline(state: ButtonState, config: DetectionConfig) -> Optional[float
 def _tick_held(state: ButtonState, now: float, config: DetectionConfig) -> Tuple[ButtonState, Presses]:
     assert state.down_since is not None
     held = now - state.down_since
-    if not state.hold_reported:
-        if config.repeat_after is not None and held >= config.repeat_after:
-            return ButtonState(down_since=state.down_since, hold_reported=True, next_repeat=now + config.repeat_interval), ("repeat",)
-        if config.repeat_after is None and held >= config.long_after:
-            return ButtonState(down_since=state.down_since, hold_reported=True), ("long",)
+    presses: Presses = ()
+    long_reported, repeating, next_repeat = state.long_reported, state.repeating, state.next_repeat
+
+    if config.repeat_after is not None and ((not repeating and held >= config.repeat_after) or (repeating and next_repeat is not None and now >= next_repeat)):
+        repeating, next_repeat, presses = True, now + config.repeat_interval, ("repeat",)
+    if not long_reported and held >= config.long_after:
+        long_reported, presses = True, presses + ("long",)
+
+    if not presses:
         return state, ()
-    if state.next_repeat is not None and now >= state.next_repeat:
-        return ButtonState(down_since=state.down_since, hold_reported=True, next_repeat=now + config.repeat_interval), ("repeat",)
-    return state, ()
+    return ButtonState(down_since=state.down_since, long_reported=long_reported, repeating=repeating, next_repeat=next_repeat), presses
