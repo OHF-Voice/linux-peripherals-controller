@@ -9,7 +9,6 @@ Example::
 
     [buttons.button]
     role = "mute"
-    report_to_ha = true
 
     [colors]
     listening = "#0000ff"
@@ -44,7 +43,6 @@ class ButtonConfig:
     """Settings of one button. None means: as the device type says."""
 
     role: Optional[ButtonRole] = None
-    report_to_ha: Optional[bool] = None
     pin: Optional[int] = None
 
 
@@ -131,22 +129,18 @@ def _tables(value: Any, path: str, source: str, read: Callable[[Mapping[str, Any
 
 
 def _button(table: Mapping[str, Any], path: str, source: str) -> ButtonConfig:
-    _check_keys(table, ("role", "report_to_ha", "pin"), path, source)
-    role = report = pin = None
+    _check_keys(table, ("role", "pin"), path, source)
+    role = pin = None
     if "role" in table:
         try:
             role = ButtonRole(table["role"])
         except ValueError:
             raise _fail(source, f"{path}.role", f"{table['role']!r} is not a role, allowed: {', '.join(r.value for r in ButtonRole)}") from None
-    if "report_to_ha" in table:
-        report = table["report_to_ha"]
-        if not isinstance(report, bool):
-            raise _fail(source, f"{path}.report_to_ha", f"{report!r} is not true or false")
     if "pin" in table:
         pin = table["pin"]
         if isinstance(pin, bool) or not isinstance(pin, int) or pin < 0:
             raise _fail(source, f"{path}.pin", f"{pin!r} is not a pin number")
-    return ButtonConfig(role, report, pin)
+    return ButtonConfig(role, pin)
 
 
 def _sensor(table: Mapping[str, Any], path: str, source: str) -> SensorConfig:
