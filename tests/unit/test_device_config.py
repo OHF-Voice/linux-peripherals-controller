@@ -12,7 +12,6 @@ brightness = 0.5
 
 [buttons.button]
 role = "mute"
-report_to_ha = true
 pin = 26
 
 [colors]
@@ -44,14 +43,14 @@ class TestValidConfig:
     def test_everything_is_read(self):
         config = parse(FULL)
         assert config.brightness == 0.5
-        assert config.buttons == {"button": ButtonConfig(ButtonRole.MUTE, True, 26)}
+        assert config.buttons == {"button": ButtonConfig(ButtonRole.MUTE, 26)}
         assert config.colors == {DisplayFunction.LISTENING: Color(0, 0, 255), DisplayFunction.MUTED: Color(255, 0, 0)}
         assert config.patterns == {DisplayFunction.LISTENING: PatternName.PULSE}
         assert config.sensors == {"temperature": SensorConfig(60.0)}
 
     def test_values_that_are_left_out_stay_none(self):
         config = parse("[buttons.button]\n")
-        assert config.buttons["button"] == ButtonConfig(None, None, None)
+        assert config.buttons["button"] == ButtonConfig(None, None)
         assert config.brightness is None
 
     @pytest.mark.parametrize("text,expected", [("0", 0.0), ("1", 1.0), ("0.25", 0.25)])
@@ -108,9 +107,8 @@ class TestErrors:
         assert "buttons.button.role: 'jump' is not a role" in message
         assert "action" in message
 
-    @pytest.mark.parametrize("value", ['"yes"', "1"])
-    def test_report_to_ha_must_be_true_or_false(self, value):
-        assert "buttons.button.report_to_ha:" in error_of(f"[buttons.button]\nreport_to_ha = {value}")
+    def test_report_to_ha_is_not_a_setting_because_every_press_is_reported(self):
+        assert "buttons.button.report_to_ha: unknown key" in error_of("[buttons.button]\nreport_to_ha = true")
 
     @pytest.mark.parametrize("value", ["-1", "1.5", '"17"', "true"])
     def test_pin_must_be_a_number(self, value):
