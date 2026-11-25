@@ -7,11 +7,12 @@ from linux_peripherals_controller.lva_protocol import COMMANDS
 from linux_peripherals_controller.lva_status import LvaStatus
 
 IDLE = LvaStatus(lva_status="connected", state="idle", muted=False, timer_status="idle")
+PRESSES = ("single", "double", "triple", "long", "repeat")
 
 
 def decide(role, press="single", **overrides):
-    values = {"status": IDLE, "link": True, "lock": False, "report": False, **overrides}
-    return decide_button_action(role, press, values["status"], values["link"], values["lock"], values["report"])
+    values = {"status": IDLE, "link": True, "lock": False, **overrides}
+    return decide_button_action(role, press, values["status"], values["link"], values["lock"])
 
 
 def names(action):
@@ -75,6 +76,12 @@ class TestMuteRole:
         assert names(decide(ButtonRole.MUTE, "long")) == ["button_pressed"]
 
 
+class TestUserRole:
+    @pytest.mark.parametrize("press", ["single", "double", "triple", "long"])
+    def test_has_no_function_and_plays_the_sound(self, press):
+        assert decide(ButtonRole.USER, press).commands == (LvaCommand("button_pressed", {"press": press}),)
+
+
 class TestButtonPressedForLva:
     def test_it_carries_the_press_type(self):
         assert decide(ButtonRole.ACTION).commands[-1] == LvaCommand("button_pressed", {"press": "single"})
@@ -84,57 +91,45 @@ class TestButtonPressedForLva:
 
     def test_every_command_is_one_of_version_2(self):
         for role in ButtonRole:
-            for press in ("single", "double", "triple", "long", "repeat"):
+            for press in PRESSES:
                 assert {c.name for c in decide(role, press).commands} <= COMMANDS
 
 
-class TestUserRole:
+class TestReportToHomeAssistant:
+    @pytest.mark.parametrize("role", list(ButtonRole))
     @pytest.mark.parametrize("press", ["single", "double", "triple", "long"])
-    def test_reports_to_home_assistant_and_plays_the_sound(self, press):
-        action = decide(ButtonRole.USER, press)
-        assert action.report_to_ha is True
-        assert action.commands == (LvaCommand("button_pressed", {"press": press}),)
+    def test_every_press_of_every_button_is_reported(self, role, press):
+        assert decide(role, press).report_to_ha is True
 
-    def test_still_reports_with_the_child_lock_on(self):
-        action = decide(ButtonRole.USER, lock=True)
-        assert action.report_to_ha is True
-        assert names(action) == ["button_pressed"]
-
-    def test_reports_without_connection_to_lva_but_sends_nothing(self):
-        action = decide(ButtonRole.USER, link=False)
-        assert action.report_to_ha is True
-        assert action.commands == ()
-
-    def test_repeat_is_not_reported(self):
-        assert decide(ButtonRole.USER, "repeat").report_to_ha is False
+    @pytest.mark.parametrize("role", list(ButtonRole))
+    def test_repeat_is_not_a_press(self, role):
+        assert decide(role, "repeat").report_to_ha is False
 
 
-class TestChildLock:
-    @pytest.mark.parametrize("role", [ButtonRole.ACTION, ButtonRole.VOLUME_UP, ButtonRole.VOLUME_DOWN, ButtonRole.MUTE])
-    def test_nothing_happens_for_the_other_roles(self, role):
-        assert decide(role, lock=True, report=True) == ButtonAction("single press ignored: the child lock is on")
+class TestPathsAreIndependent:
+    """LVA and the child lock only concern what is sent to LVA, never the report to Home Assistant."""
 
+    @pytest.mark.parametrize("role", list(ButtonRole))
+    @pytest.mark.parametrize("press", PRESSES)
+    @pytest.mark.parametrize("link", [True, False])
+    @pytest.mark.parametrize("lock", [True, False])
+    def test_report_does_not_depend_on_lva_or_the_child_lock(self, role, press, link, lock):
+        assert decide(role, press, link=link, lock=lock).report_to_ha == decide(role, press).report_to_ha
 
-class TestNotConnected:
-    def test_nothing_is_sent_and_the_reason_says_why(self):
-        action = decide(ButtonRole.ACTION, link=False)
+    @pytest.mark.parametrize("role", list(ButtonRole))
+    def test_nothing_is_sent_to_lva_without_a_connection(self, role):
+        action = decide(role, link=False)
         assert action.commands == ()
         assert "not connected to LVA" in action.reason
 
-    def test_report_to_home_assistant_still_works(self):
-        assert decide(ButtonRole.ACTION, link=False, report=True).report_to_ha is True
+    @pytest.mark.parametrize("role", list(ButtonRole))
+    @pytest.mark.parametrize("press", PRESSES)
+    def test_nothing_is_sent_to_lva_while_the_child_lock_is_on(self, role, press):
+        action = decide(role, press, lock=True)
+        assert action == ButtonAction(f"{press} press of {role} not sent to LVA: the child lock is on", (), press != "repeat")
 
-
-class TestReportToHomeAssistant:
-    def test_off_by_default_for_the_other_roles(self):
-        assert decide(ButtonRole.ACTION).report_to_ha is False
-
-    @pytest.mark.parametrize("press", ["single", "double", "triple", "long"])
-    def test_on_when_configured(self, press):
-        assert decide(ButtonRole.ACTION, press, report=True).report_to_ha is True
-
-    def test_repeat_is_never_reported(self):
-        assert decide(ButtonRole.VOLUME_UP, "repeat", report=True).report_to_ha is False
+    def test_child_lock_wins_over_a_missing_connection_in_the_reason(self):
+        assert "child lock" in decide(ButtonRole.ACTION, link=False, lock=True).reason
 
 
 class TestReason:
@@ -143,27 +138,3 @@ class TestReason:
 
     def test_reason_for_a_press_without_function(self):
         assert decide(ButtonRole.ACTION, "long").reason == "long press of action has no function"
-
-
-class TestPathsAreIndependent:
-    """Whether LVA is connected never changes what is reported to Home Assistant."""
-
-    @pytest.mark.parametrize("role", list(ButtonRole))
-    @pytest.mark.parametrize("press", ["single", "double", "triple", "long", "repeat"])
-    @pytest.mark.parametrize("report", [False, True])
-    @pytest.mark.parametrize("lock", [False, True])
-    def test_report_to_home_assistant_is_the_same_with_and_without_lva(self, role, press, report, lock):
-        connected = decide(role, press, link=True, lock=lock, report=report)
-        disconnected = decide(role, press, link=False, lock=lock, report=report)
-        assert connected.report_to_ha == disconnected.report_to_ha
-
-    @pytest.mark.parametrize("role", list(ButtonRole))
-    def test_nothing_is_sent_to_lva_without_a_connection(self, role):
-        assert decide(role, link=False, report=True).commands == ()
-
-    def test_commands_for_lva_do_not_depend_on_the_report(self):
-        assert decide(ButtonRole.ACTION, report=True).commands == decide(ButtonRole.ACTION, report=False).commands
-
-    def test_user_button_without_lva_is_still_reported(self):
-        action = decide(ButtonRole.USER, "double", link=False)
-        assert (action.report_to_ha, action.commands) == (True, ())
