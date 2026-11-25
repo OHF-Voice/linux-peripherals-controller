@@ -122,7 +122,7 @@ LPC detects the press type of every button itself, with the timing of the Home A
 | Single | One press, then more than 250 ms without another. |
 | Double | Press, gap below 250 ms, press, then more than 250 ms without another. |
 | Triple | Press, gap below 250 ms, press, gap below 250 ms, press, then more than 250 ms without another. |
-| Long | The button is held for at least 1 s. |
+| Long | The button is held for at least 1 s. It is reported as soon as the second is over, not on release. A press that waits for its gap is dropped when the next press turns into a long one. |
 
 ### Roles
 
@@ -131,7 +131,7 @@ Every button has a **role**. The device type gives each button a default role, a
 | Role | What a press does |
 |------|-------------------|
 | `action` | Controls the assistant by its state, see below. |
-| `volume_up`, `volume_down` | Sends `volume_up` / `volume_down` to LVA. Held down, it repeats. |
+| `volume_up`, `volume_down` | Sends `volume_up` / `volume_down` to LVA. Held down, it repeats after 0.5 s every 0.25 s, so these buttons have no long press. |
 | `mute` | Toggles the microphone mute (`mute_on` / `mute_off`). |
 | `user` | Does nothing in LPC. The press is reported to Home Assistant, see [Home Assistant](#home-assistant). |
 
