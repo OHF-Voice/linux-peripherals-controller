@@ -78,13 +78,16 @@ These functions show the state of the assistant on the LEDs. They follow the [ev
 
 | Function | Shown while |
 |----------|-------------|
+| `wake_word` | The wake word was detected, the wake sound plays. |
 | `listening` | The assistant listens. |
 | `thinking` | Home Assistant processes the request. |
 | `tts` | The assistant speaks. |
 | `announce` | An announcement plays. |
+| `pipeline_error` | The voice pipeline failed. Shown once for a short time (three red flashes in the default pattern), then the previous display returns. |
 | `muted` | The microphone is muted. |
-| `timer_active` | A timer counts down. |
+| `timer_active` | A timer counts down. The time left in percent of the whole duration (`timer_remaining_percentage` of LVA) is the amount shown, for example as a progress ring. |
 | `timer_ringing` | A timer rings. |
+| `timer_timeout` | A ringing timer was not dismissed and stopped on its own (`timer_auto_stopped` of LVA). Shown once for a short time, then the previous display returns. |
 | `volume` | The volume changed. Shown for a short time, then the previous display returns. |
 | `no_connection` | LVA is not connected to LPC or LVA is not connected to Home Assistant. |
 
@@ -94,8 +97,8 @@ Several things can be true at once, so the display follows a fixed order, highes
 
 1. `no_connection`
 2. `timer_ringing`
-3. `listening`, `thinking`, `tts`, `announce`
-4. `volume` (short, over everything below it)
+3. `wake_word`, `listening`, `thinking`, `tts`, `announce`
+4. `pipeline_error`, `timer_timeout` and `volume` (short, over everything below them)
 5. `muted`
 6. `timer_active`
 7. The background: the light of Home Assistant, see below.
@@ -142,9 +145,11 @@ For the roles other than `user` only the **single press** has an effect. A butto
 | `listening`, `thinking`, `tts` or `announce` | `stop` |
 | Anything else | `start_listening` |
 
-The state comes from LVA. Without a connection to LVA, a press does nothing and is logged.
+The state comes from LVA. Without a connection to LVA, a press does nothing towards LVA and is logged.
 
-**Volume at the limit.** `volume_up` at 100 % changes nothing. LVA then plays a short feedback sound.
+**Button sounds.** Every press of a button is also sent to LVA as `button_pressed` with its press type, so LVA plays the sound for it (double, triple and long press; a single press has none). This applies to all roles. A press that LPC ignores (child lock, no connection to LVA) is not sent.
+
+**Volume sounds.** A volume change by `volume_up` or `volume_down` plays a short step sound in LVA. At the limit (`volume_up` at 100 %, `volume_down` at 0 %) nothing changes and a different short sound (the limit) plays.
 
 ---
 
@@ -183,20 +188,23 @@ Entities are never reordered or removed once they exist (as in LVA), so Home Ass
 
 ## Bridge to LVA
 
-LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version 2](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/behavior.md#peripheral-api-versions) of LVA. If the connection is lost, LPC reconnects every few seconds and shows `no_connection` meanwhile. After a reconnect it takes the state from the snapshot that LVA sends.
+LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version 2](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/behavior_peripheral_api.md) of LVA. If the connection is lost, LPC reconnects every few seconds and shows `no_connection` meanwhile. After a reconnect it takes the state from the snapshot that LVA sends.
 
 **From LVA to LPC** (what LPC shows):
 
 | LVA event | Effect in LPC |
 |-----------|---------------|
 | `lva_status` | `disconnected` shows `no_connection`. |
-| `state` | `listening`, `thinking`, `tts`, `announce` show the matching function. `idle` shows none. The `action` role uses the state. |
+| `state` | `wake_word`, `listening`, `thinking`, `tts`, `announce` show the matching function. `idle` shows none. The `action` role uses the state. |
+| `pipeline_error` | Shows `pipeline_error`. |
+| `timer_auto_stopped` | Shows `timer_timeout`. |
 | `mute_status` | `muted` function. |
 | `volume_status` | `volume` function, with the volume as the amount shown. Not shown for the first value after a connect. |
 | `timer_status` | `active` shows `timer_active`, `ringing` shows `timer_ringing`. |
+| `timer_remaining_time`, `timer_remaining_percentage` | The amount shown by `timer_active`. A device type may show the seconds instead of the percentage. |
 | `media_player_status` | Kept as state. No function in the default setup, a device type may use it. |
 
-**From LPC to LVA** (what buttons do): `start_listening`, `stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set` and `timer_stop`, as described for the roles above. Nothing else is sent. A command is dropped and logged when LVA is not connected.
+**From LPC to LVA** (what buttons do): `start_listening`, `stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `timer_stop` and `button_pressed`, as described for the roles above. Nothing else is sent. A command is dropped and logged when LVA is not connected.
 
 LPC does not tell LVA anything about Home Assistant entities, the light, sensors or the child lock.
 

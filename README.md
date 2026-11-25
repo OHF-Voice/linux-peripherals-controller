@@ -4,7 +4,7 @@
 
 One service for the hardware peripherals (LED rings, buttons, HAT boards, USB devices) of [Linux-Voice-Assistant](https://github.com/OHF-Voice/linux-voice-assistant) (LVA).
 
-It connects to the [peripheral WebSocket API](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/peripheral_api.md) of LVA and runs as a Docker container next to it. It is meant to replace the separate peripheral scripts in the `examples/` folder of LVA.
+It connects to the [peripheral WebSocket API](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/peripheral_api/readme.md) of LVA and runs as a Docker container next to it. It is meant to replace the separate peripheral scripts in the `examples/` folder of LVA.
 
 > [!NOTE]
 > This repository only contains the project scaffolding so far. The peripheral drivers are added later.
