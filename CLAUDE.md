@@ -35,6 +35,7 @@ Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA 
 | `lva_protocol.py` | Wire format: `lva_url()`, `parse_event()`, `build_command()`, `COMMANDS` (version 2 only) |
 | `lva_status.py` | `LvaStatus` (immutable) and `apply_event()`: new status plus the short signal (`pipeline_error`, `timeout`, changed volume, not the first volume) |
 | `button_roles.py` | `ButtonRole`, `decide_button_action()`: the commands for LVA (`LvaCommand`) and whether to report to Home Assistant, by role, press, `LvaStatus`, connection and child lock. `reason` is for the log |
+| `press_detection.py` | Press types from the timing of a button: `press()`/`release()`/`tick()` take the state and the time and return the new `ButtonState` and the complete presses (`single`, `double`, `triple`, `long`, `repeat`). `next_deadline()` says when to call `tick()` |
 | `display.py` | `DisplayFunction`, `select_display_function()` (fixed priority order), `start_transient()` for the short functions |
 | `util.py` | `get_version()` (reads `version.txt`) |
 
