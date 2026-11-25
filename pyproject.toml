@@ -19,7 +19,7 @@ classifiers = [
 ]
 requires-python = ">=3.13.0"
 dependencies = [
-    "websockets==12",
+    "websockets==17.4",
 ]
 dynamic = ["version"]
 
