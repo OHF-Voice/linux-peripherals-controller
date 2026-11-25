@@ -13,9 +13,10 @@ It connects to the [peripheral WebSocket API](https://github.com/OHF-Voice/linux
 
 ## Planned peripherals
 
-- ReSpeaker 2mic HAT
+- ReSpeaker 2mic HAT v1.1
+- ReSpeaker 2mic HAT v2.0
 - ReSpeaker 4mic HAT
-- ReSpeaker Mic Array v2.0 (USB)
+- ReSpeaker lite (USB)
 - Jabra Speak 410
 
 ## Not planned
