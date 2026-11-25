@@ -143,3 +143,27 @@ class TestReason:
 
     def test_reason_for_a_press_without_function(self):
         assert decide(ButtonRole.ACTION, "long").reason == "long press of action has no function"
+
+
+class TestPathsAreIndependent:
+    """Whether LVA is connected never changes what is reported to Home Assistant."""
+
+    @pytest.mark.parametrize("role", list(ButtonRole))
+    @pytest.mark.parametrize("press", ["single", "double", "triple", "long", "repeat"])
+    @pytest.mark.parametrize("report", [False, True])
+    @pytest.mark.parametrize("lock", [False, True])
+    def test_report_to_home_assistant_is_the_same_with_and_without_lva(self, role, press, report, lock):
+        connected = decide(role, press, link=True, lock=lock, report=report)
+        disconnected = decide(role, press, link=False, lock=lock, report=report)
+        assert connected.report_to_ha == disconnected.report_to_ha
+
+    @pytest.mark.parametrize("role", list(ButtonRole))
+    def test_nothing_is_sent_to_lva_without_a_connection(self, role):
+        assert decide(role, link=False, report=True).commands == ()
+
+    def test_commands_for_lva_do_not_depend_on_the_report(self):
+        assert decide(ButtonRole.ACTION, report=True).commands == decide(ButtonRole.ACTION, report=False).commands
+
+    def test_user_button_without_lva_is_still_reported(self):
+        action = decide(ButtonRole.USER, "double", link=False)
+        assert (action.report_to_ha, action.commands) == (True, ())
