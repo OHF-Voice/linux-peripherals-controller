@@ -16,7 +16,7 @@ LPC always means **Linux Peripherals Controller**, this project. LVA means **Lin
 
 ### Purpose
 - Replaces the separate peripheral scripts in `examples/` of LVA (Satellite1 HAT, ReSpeaker 2mic/4mic HAT, ReSpeaker USB Mic Array, Jabra Speak 410) with one service
-- Talks to LVA only through its peripheral WebSocket API, see the LVA repository: `docs/peripheral_api.md`
+- Talks to LVA only through its peripheral WebSocket API, see the LVA repository: `docs/peripheral_api/readme.md`
 - Runs on x64/ARM64/ARMv7 Linux hardware, typically on the same Raspberry Pi as LVA
 
 ### Architecture
@@ -127,4 +127,4 @@ Before claiming completion:
 ## Areas Requiring Extra Care
 
 - Peripheral drivers - hardware access (GPIO, SPI, PWM/DMA, USB HID) cannot be verified by unit tests
-- Protocol handling towards LVA - keep in sync with `docs/peripheral_api.md` of LVA
+- Protocol handling towards LVA - keep in sync with `docs/peripheral_api/readme.md` of LVA
