@@ -66,7 +66,7 @@ def decide_button_action(
     Buttons with the role ``user`` only report to Home Assistant, also while the child lock is on. For the other roles only a
     single press has an effect (the volume buttons also on ``repeat``), and nothing happens while the child lock is on. Every
     press that is not ignored is also sent to LVA as ``button_pressed``, so LVA plays its sound. Without a connection to LVA
-    nothing is sent to it.
+    nothing is sent to it. That does not change the report to Home Assistant: the two paths are independent.
     """
     if role == ButtonRole.USER:
         return ButtonAction(f"{press} press of a user button", _button_pressed(press, link_connected), report_to_ha=press in PRESS_TYPES)
@@ -75,7 +75,7 @@ def decide_button_action(
 
     report = report_to_ha and press in PRESS_TYPES
     if not link_connected:
-        return ButtonAction(f"{press} press of {role} not sent: not connected to LVA", report_to_ha=report)
+        return ButtonAction(f"{press} press of {role} not sent to LVA: not connected to LVA", report_to_ha=report)
 
     function = _function_command(role, press, status)
     commands = ((function,) if function is not None else ()) + _button_pressed(press, link_connected)
