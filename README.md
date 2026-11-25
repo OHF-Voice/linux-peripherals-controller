@@ -33,6 +33,8 @@ There is an environment variable for each parameter, see [Configuration](docs/co
 
 | Parameter | Environment variable | Default | Description |
 |-----------|----------------------|---------|-------------|
+| `--device-type` | `DEVICE_TYPE` | | Type of the device, required (for example `respeaker_2mic_v1`) |
+| `--device-config` | `DEVICE_CONFIG` | | TOML file with the settings of this device |
 | `--lva-host` | `LVA_HOST` | `localhost` | Host of the LVA peripheral WebSocket API |
 | `--lva-port` | `LVA_PORT` | `6055` | Port of the LVA peripheral WebSocket API |
 | `--debug` | `ENABLE_DEBUG=1` | off | Print DEBUG messages to console |

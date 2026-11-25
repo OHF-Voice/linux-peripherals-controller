@@ -38,6 +38,7 @@ Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA 
 | `appearance.py` | `Color` (`from_hex()`), `PatternName`, `DEFAULT_COLORS` / `DEFAULT_PATTERNS`: one entry per `DisplayFunction` |
 | `device_types.py` | `DeviceType` (LEDs, buttons, sensors, offered functions, color and pattern overrides) as data, `DEVICE_TYPES`, `get_device_type()` (raises `UnknownDeviceType` with the known names). Opens no hardware |
 | `device_config.py` | `load_device_config()` / `parse_device_config()`: the TOML file of one device (brightness, buttons, colors, patterns, sensors) as an immutable `DeviceConfig`. The whole file is checked, any unknown key or invalid value raises `DeviceConfigError` naming file and key |
+| `device_setup.py` | `resolve_device()`: merges defaults < device type < device configuration into a `ResolvedDevice`. Refuses names the device type does not have (`DeviceConfigError`) |
 | `display.py` | `DisplayFunction`, `select_display_function()` (fixed priority order), `start_transient()` for the short functions |
 | `util.py` | `get_version()` (reads `version.txt`) |
 
