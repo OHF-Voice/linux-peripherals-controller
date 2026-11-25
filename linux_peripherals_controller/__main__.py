@@ -1,9 +1,11 @@
 """Entry point of the Linux Peripherals Controller."""
 
 import argparse
+import asyncio
 import logging
 from typing import Optional, Sequence
 
+from .controller import Controller
 from .util import get_version
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +25,11 @@ def run(argv: Optional[Sequence[str]] = None) -> None:
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
     _LOGGER.info("Version: %s", get_version())
     _LOGGER.info("Peripheral API of LVA: ws://%s:%s", args.lva_host, args.lva_port)
-    _LOGGER.warning("No peripheral drivers are implemented yet")
+    _LOGGER.warning("No peripheral drivers are implemented yet, the display function is only logged")
+    try:
+        asyncio.run(Controller(args.lva_host, args.lva_port).run())
+    except KeyboardInterrupt:
+        _LOGGER.info("Stopped")
 
 
 if __name__ == "__main__":

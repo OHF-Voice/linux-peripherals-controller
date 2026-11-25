@@ -23,13 +23,18 @@ Only run `./script/setup --dev` if `.venv` is missing, because the script delete
 
 ## State of the project
 
-Only the repository scaffolding exists: CI, Docker build, docs, lint and test setup. The peripheral drivers (to be ported from `examples/` of LVA) are added later. `__main__.py` currently only parses `--lva-host`, `--lva-port` and `--debug`, logs the version and exits.
+Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA (peripheral API version 2) and the choice of the display function. The peripheral drivers (to be ported from `examples/` of LVA), buttons, device types and device configuration, and the ESPHome server for Home Assistant are added later. The specification is `docs/behavior.md`.
 
 ## Module map
 
 | File | Responsibility |
 |------|---------------|
-| `__main__.py` | argparse, logging, start of the controller |
+| `__main__.py` | argparse, logging, start of the controller (`asyncio.run(Controller(...).run())`) |
+| `controller.py` | `Controller`: holds the `LvaStatus`, lets the pure functions pick the display function, reports a change to `on_display_change`, ends short functions with a timer. A (re)connect or a loss starts from an empty status |
+| `lva_bridge.py` | `LvaBridge`: WebSocket client of `/v2` with reconnect, hands events to the controller, `send_command()` drops commands while not connected. Thin I/O only |
+| `lva_protocol.py` | Wire format: `lva_url()`, `parse_event()`, `build_command()`, `COMMANDS` (version 2 only) |
+| `lva_status.py` | `LvaStatus` (immutable) and `apply_event()`: new status plus the short signal (`pipeline_error`, `timeout`, changed volume, not the first volume) |
+| `display.py` | `DisplayFunction`, `select_display_function()` (fixed priority order), `start_transient()` for the short functions |
 | `util.py` | `get_version()` (reads `version.txt`) |
 
 ## Change checklists
