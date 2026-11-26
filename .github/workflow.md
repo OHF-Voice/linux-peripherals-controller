@@ -35,6 +35,8 @@ Automatically builds nightly images from the main branch.
 **Triggers:**
 - Push to `main` branch
 
+**Concurrency:** A new push to `main` cancels a run of this workflow that is still in progress, including all its jobs. Only the newest commit is built, and an outdated run can no longer move the `nightly` tag back to an older image. A cancelled run shows as "cancelled", not as failed.
+
 **Image Tag:**
 ```
 ghcr.io/ohf-voice/linux-peripherals-controller:nightly
@@ -46,6 +48,8 @@ Builds images for pull requests using the PR number as tag.
 
 **Triggers:**
 - Pull request opened, synchronized, or reopened
+
+**Concurrency:** A new commit on a pull request cancels the image build of the previous commit that is still running.
 
 **Image Tag:**
 ```
