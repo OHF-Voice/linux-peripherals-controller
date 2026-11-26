@@ -37,7 +37,7 @@ async def test_connects_on_the_url_of_version_2_and_hands_over_events():
     paths, events, connections = [], [], []
 
     async def handler(websocket):
-        paths.append(websocket.path)
+        paths.append(websocket.request.path)
         await websocket.send(json.dumps({"event": "hello", "data": {"api_version": "v2"}}))
         await websocket.send("not an event")
         await websocket.send(json.dumps({"event": "state", "data": {"state": "idle"}}))
@@ -183,8 +183,8 @@ async def test_lva_without_version_2_is_reported(caplog):
     async def handler(websocket):
         await websocket.wait_closed()
 
-    async def refuse(_path, _headers):
-        return HTTPStatus.NOT_FOUND, [], b"Unsupported"
+    def refuse(connection, _request):
+        return connection.respond(HTTPStatus.NOT_FOUND, "Unsupported\n")
 
     async with lva_server(handler, process_request=refuse) as port:
         with caplog.at_level(logging.WARNING):

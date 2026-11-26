@@ -11,7 +11,7 @@ import logging
 from typing import Any, Callable, Mapping, Optional
 
 import websockets
-from websockets.exceptions import InvalidStatusCode, WebSocketException
+from websockets.exceptions import InvalidStatus, WebSocketException
 
 from .lva_protocol import API_VERSION, LvaEvent, LvaRequest, build_message, parse_message
 
@@ -90,8 +90,8 @@ class LvaBridge:
                         self._on_request(message)
                     else:
                         self._on_event(message)
-        except InvalidStatusCode as exc:
-            self._log_failure("LVA does not offer peripheral API %s at %s (HTTP %s)", API_VERSION, self._url, exc.status_code)
+        except InvalidStatus as exc:
+            self._log_failure("LVA does not offer peripheral API %s at %s (HTTP %s)", API_VERSION, self._url, exc.response.status_code)
         except (OSError, WebSocketException) as exc:
             self._log_failure("Cannot reach LVA at %s: %s", self._url, exc)
         finally:
