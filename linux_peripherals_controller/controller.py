@@ -1,7 +1,7 @@
 """The controller: connects LVA to what the device shows.
 
 It holds the status of LVA, lets the pure functions decide which display function is shown and tells the caller when that changes.
-It also tells LVA about the hardware mute of the device and passes on the requests of LVA to switch it. The hardware (LEDs,
+It also tells LVA about the hardware mute of the device and passes on the requests of LVA to switch it. The device is the authority: LVA is told the state after every (re)connect and never sets it. The hardware (LEDs,
 buttons, the mute itself) is not part of it yet.
 """
 
@@ -49,7 +49,7 @@ class Controller:
         self._transient: Optional[TransientDisplay] = None
         self._display: Optional[DisplayFunction] = DisplayFunction.NO_CONNECTION
         self._reselect_handle: Optional[asyncio.TimerHandle] = None
-        self._hardware_mute: Optional[HardwareMute] = None
+        self._hardware_mute = HardwareMute()
         self._told_lva: Optional[HardwareMute] = None
         self._sending: set[asyncio.Task] = set()
 
@@ -58,11 +58,10 @@ class Controller:
         """The display function that is shown now, None for the background."""
         return self._display
 
-    def set_hardware_mute(self, hardware: Optional[HardwareMute]) -> None:
+    def set_hardware_mute(self, hardware: HardwareMute) -> None:
         """
-        Tell the controller the hardware mute of the device. Call it on the event loop, whenever it changes.
-        :param hardware: The hardware mute, None if the device has none. LVA is told about every change, and about the whole
-        state after a new connection.
+        Tell the controller the hardware mute of the device, as read from the device. Call it on the event loop, whenever it changes.
+        :param hardware: The hardware mute. LVA is told about every change, and about the whole state after a new connection.
         """
         self._hardware_mute = hardware
         self._send_hardware_mute()

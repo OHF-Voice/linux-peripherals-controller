@@ -2,7 +2,7 @@
 
 This page describes what Linux Peripherals Controller (LPC) does, from the user's point of view. It is the source of truth for the behavior of LPC: code changes follow it, and a change of the behavior updates it.
 
-> **Status:** specified here, implementation follows. Implemented so far: the connection to LVA (version 2, reconnecting), the choice of the display function, and the reports about the hardware mute with the handling of the requests of LVA (the device type does not say yet whether a device has a hardware mute, so a driver has to report it). Without a device driver the display function is only logged at debug level, and there are no Home Assistant entities, buttons, device types or device configuration yet.
+> **Status:** specified here, implementation follows. Implemented so far: the connection to LVA (version 2, reconnecting), the choice of the display function, and the reports about the hardware mute to LVA with the handling of its requests, and the choice of the entity for it (the device type does not say yet which hardware mute a device has, so a driver has to report it, and the entity itself follows with the ESPHome server). Without a device driver the display function is only logged at debug level, and there are no Home Assistant entities, buttons, device types or device configuration yet.
 
 ---
 
@@ -37,7 +37,7 @@ LPC runs the hardware of one device: LEDs, buttons and sensors. Two connections 
 - **LPC is its own ESPHome device in Home Assistant.** LEDs, button presses, child lock and sensors reach Home Assistant through LPC, whether LVA runs or not. LVA publishes none of this.
 - **The connection to LVA is only a bridge.** It carries the state of the assistant to LPC (so the LEDs can show it) and a few commands back (so buttons can control the assistant). See [Bridge to LVA](#bridge-to-lva).
 - **LPC works without LVA.** If LVA is not reachable, LPC keeps retrying, the Home Assistant entities keep working and the LEDs show that there is no connection.
-- **The two paths are independent. This is the rule for every component.** What a component reports (a button press, a sensor reading, the state of the light) goes to each destination on its own: to LVA over the bridge and to Home Assistant over ESPHome. Whether one destination can be reached never changes what is sent to the other. A lost connection to LVA does not stop the reports to Home Assistant, and a lost connection to Home Assistant does not stop the commands to LVA. Nothing waits for the other path, and what cannot be delivered is dropped and logged, not held back. There is one exception: the [hardware mute](#hardware-mute) reaches Home Assistant through LVA, because LVA shows and sets it.
+- **The two paths are independent. This is the rule for every component.** What a component reports (a button press, a sensor reading, the state of the light) goes to each destination on its own: to LVA over the bridge and to Home Assistant over ESPHome. Whether one destination can be reached never changes what is sent to the other. A lost connection to LVA does not stop the reports to Home Assistant, and a lost connection to Home Assistant does not stop the commands to LVA. Nothing waits for the other path, and what cannot be delivered is dropped and logged, not held back.
 
 ---
 
@@ -169,13 +169,20 @@ The state is stored and restored after a restart. LVA does not know about the ch
 
 ## Hardware mute
 
-Some hardware can mute its microphone itself, with a switch or a button, and sometimes software can switch that too. A device type says whether the device has a hardware mute and whether software can switch it, and the driver reports whether it is on.
+Some hardware can mute its microphone itself, with a switch or a button, and sometimes software can switch that too. A device type says which kind of hardware mute the device has, and the driver reads its state from the device.
 
-- **LPC tells LVA** about it with `hardware_mute_possible` (`true` or `false`, can software switch it) and `hardware_mute_status` (`muted` or `unmuted`). Both are sent after every (re)connect to LVA, and afterwards whenever a value changes. A device without a hardware mute tells nothing.
-- **LVA passes it on.** LVA shows it in Home Assistant with its **Hardware Mute** switch, which appears when LPC reports for the first time, and passes it to other version 2 peripherals. LPC has no ESPHome entity for it.
-- **Home Assistant switches it through LVA.** When the switch is changed, LVA sends `hardware_mute_on` or `hardware_mute_off` to LPC. LPC carries it out if the device has a hardware mute and software can switch it, otherwise it ignores the request and logs why. LPC then reports the new state itself, once the hardware has changed.
-- **It is separate from the Mute of the assistant.** Neither follows the other: LVA does not mute because the hardware is muted, and muting the hardware does not mute LVA. The LEDs do not change either. The reports of other peripherals about the hardware mute are ignored, because LPC owns its hardware.
-- **Without a connection to LVA** nothing is told and no request can arrive. After the next connect everything is told again.
+| Type | Meaning | In Home Assistant |
+|------|---------|-------------------|
+| `none` | The device has no hardware mute. | No entity. |
+| `changeable` | The device has one that software can switch. | A switch (`Hardware Mute`): it shows the state and switches the hardware. |
+| `read_only` | The device has one that can only be read (for example a slide switch). | A binary sensor (`Hardware Mute`): the state only, it cannot be switched. |
+
+- **The device is always the authority.** LPC reads the state from the device, also right after a (re)connect to LVA and after startup. Neither LVA nor Home Assistant ever sets the state: they can only ask the hardware to switch (if it is `changeable`), and the state that Home Assistant and LVA see is the one the device reports afterwards.
+- **LPC offers the entity itself,** over ESPHome, as in the table. LVA creates no entity for it.
+- **LPC tells LVA** with `hardware_mute_type` (`none`, `changeable` or `read_only`) and `hardware_mute_status` (`muted` or `unmuted`, not for the type `none`). Both are sent after every (re)connect to LVA, and afterwards whenever a value changes. LVA uses them only for its own processing.
+- **LVA may ask to switch it.** LVA can send `hardware_mute_on` or `hardware_mute_off`. LPC carries it out only if the type is `changeable`, otherwise it ignores the request and logs why. LPC then reports the new state itself, once the hardware has changed. The same rule applies to the switch in Home Assistant.
+- **It is separate from the Mute of the assistant.** Neither follows the other, and the LEDs do not change. LVA will be able to sync its mute with the hardware mute with a parameter that comes later.
+- **Without a connection to LVA** nothing is told and no request can arrive. The entity in Home Assistant works as before.
 
 ---
 
@@ -194,6 +201,7 @@ LPC is discovered by Home Assistant over mDNS as an ESPHome device, like LVA (`-
 | `LED` | Light | On/off, color and brightness. Only if the device has LEDs. |
 | `<Button name>` | Event | One per button with the role `user` (or `report_to_ha`). Event types `single_press`, `double_press`, `triple_press`, `long_press`. |
 | `Child Lock` | Switch | See [Child lock](#child-lock). |
+| `Hardware Mute` | Switch or binary sensor | Only for a device with a hardware mute: a switch if it is `changeable`, a binary sensor (status only) if it is `read_only`. See [Hardware mute](#hardware-mute). |
 | `<Sensor name>` | Sensor | One per sensor of the device type. |
 
 Entities are never reordered or removed once they exist (as in LVA), so Home Assistant keeps its history. The light state is stored and restored after a restart.
@@ -219,9 +227,9 @@ LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version
 | `media_player_status` | Kept as state. No function in the default setup, a device type may use it. |
 | `hardware_mute_on`, `hardware_mute_off` | A request to switch the hardware mute, see [Hardware mute](#hardware-mute). |
 
-**From LPC to LVA** (what buttons do): `start_listening`, `stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `timer_stop` and `button_pressed`, as described for the roles above, and `hardware_mute_status` and `hardware_mute_possible`, see [Hardware mute](#hardware-mute). Nothing else is sent. A command is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
+**From LPC to LVA** (what buttons do): `start_listening`, `stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `timer_stop` and `button_pressed`, as described for the roles above, and `hardware_mute_type` and `hardware_mute_status`, see [Hardware mute](#hardware-mute). Nothing else is sent. A command is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
 
-LPC does not tell LVA anything about Home Assistant entities, the light, sensors or the child lock. The hardware mute is the only thing about the hardware that LVA is told.
+LPC does not tell LVA anything about Home Assistant entities, the light, sensors or the child lock. The hardware mute is the only thing about the hardware that LVA is told, and it only uses that internally.
 
 ---
 

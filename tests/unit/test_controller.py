@@ -10,7 +10,7 @@ import websockets
 
 from linux_peripherals_controller.controller import Controller
 from linux_peripherals_controller.display import DisplayFunction
-from linux_peripherals_controller.hardware_mute import HardwareMute
+from linux_peripherals_controller.hardware_mute import HardwareMute, HardwareMuteType
 from linux_peripherals_controller.lva_protocol import LvaEvent
 
 
@@ -147,7 +147,8 @@ async def test_with_a_real_connection_to_lva():
     assert shown[:2] == [None, DisplayFunction.LISTENING]
 
 
-POSSIBLE = HardwareMute(possible=True, muted=False)
+POSSIBLE = HardwareMute(HardwareMuteType.CHANGEABLE, muted=False)
+READ_ONLY = HardwareMute(HardwareMuteType.READ_ONLY, muted=True)
 
 
 def make_mute_controller(requests=None):
@@ -172,7 +173,14 @@ class TestTellLvaAboutTheHardwareMute:
         controller._handle_connection(True)  # pylint: disable=protected-access
         controller.set_hardware_mute(POSSIBLE)
         await settle()
-        assert sent(controller) == [("hardware_mute_possible", {"possible": True}), ("hardware_mute_status", {"status": "unmuted"})]
+        assert sent(controller)[-2:] == [("hardware_mute_type", {"type": "changeable"}), ("hardware_mute_status", {"status": "unmuted"})]
+
+    @pytest.mark.asyncio
+    async def test_a_device_without_a_hardware_mute_tells_that_after_a_connect(self):
+        controller = make_mute_controller()
+        controller._handle_connection(True)  # pylint: disable=protected-access
+        await settle()
+        assert sent(controller) == [("hardware_mute_type", {"type": "none"})]
 
     @pytest.mark.asyncio
     async def test_nothing_is_sent_before_the_connection_is_up_and_all_of_it_when_it_is(self):
@@ -183,7 +191,7 @@ class TestTellLvaAboutTheHardwareMute:
 
         controller._handle_connection(True)  # pylint: disable=protected-access
         await settle()
-        assert [name for name, _ in sent(controller)] == ["hardware_mute_possible", "hardware_mute_status"]
+        assert [name for name, _ in sent(controller)] == ["hardware_mute_type", "hardware_mute_status"]
 
     @pytest.mark.asyncio
     async def test_only_a_change_is_told_afterwards(self):
@@ -193,7 +201,7 @@ class TestTellLvaAboutTheHardwareMute:
         await settle()
         controller._bridge.send_command.reset_mock()  # pylint: disable=protected-access
 
-        controller.set_hardware_mute(HardwareMute(possible=True, muted=True))
+        controller.set_hardware_mute(HardwareMute(HardwareMuteType.CHANGEABLE, muted=True))
         await settle()
 
         assert sent(controller) == [("hardware_mute_status", {"status": "muted"})]
@@ -212,26 +220,33 @@ class TestTellLvaAboutTheHardwareMute:
         assert sent(controller) == []
 
     @pytest.mark.asyncio
-    async def test_a_new_connection_tells_everything_again(self):
+    async def test_a_new_connection_reads_the_device_again_and_tells_everything(self):
         controller = make_mute_controller()
         controller._handle_connection(True)  # pylint: disable=protected-access
         controller.set_hardware_mute(POSSIBLE)
         await settle()
         controller._handle_connection(False)  # pylint: disable=protected-access
+        controller.set_hardware_mute(HardwareMute(HardwareMuteType.CHANGEABLE, muted=True))
         controller._bridge.send_command.reset_mock()  # pylint: disable=protected-access
 
         controller._handle_connection(True)  # pylint: disable=protected-access
         await settle()
 
-        assert [name for name, _ in sent(controller)] == ["hardware_mute_possible", "hardware_mute_status"]
+        assert sent(controller) == [("hardware_mute_type", {"type": "changeable"}), ("hardware_mute_status", {"status": "muted"})]
 
     @pytest.mark.asyncio
-    async def test_a_device_without_a_hardware_mute_tells_nothing(self):
-        controller = make_mute_controller()
+    async def test_lva_never_sets_the_state_of_the_device(self):
+        controller = make_mute_controller([])
         controller._handle_connection(True)  # pylint: disable=protected-access
-        controller.set_hardware_mute(None)
+        controller.set_hardware_mute(HardwareMute(HardwareMuteType.CHANGEABLE, muted=True))
         await settle()
-        assert sent(controller) == []
+        controller._bridge.send_command.reset_mock()  # pylint: disable=protected-access
+
+        feed(controller, ("hardware_mute_status", {"status": "unmuted"}), ("mute_status", {"muted": False}))
+        controller._handle_connection(True)  # pylint: disable=protected-access
+        await settle()
+
+        assert ("hardware_mute_status", {"status": "muted"}) in sent(controller)
 
     @pytest.mark.asyncio
     async def test_a_command_that_could_not_be_sent_is_told_again_next_time(self):
@@ -245,14 +260,14 @@ class TestTellLvaAboutTheHardwareMute:
         controller.set_hardware_mute(POSSIBLE)
         await settle()
 
-        assert [name for name, _ in sent(controller)] == ["hardware_mute_possible", "hardware_mute_status"]
+        assert [name for name, _ in sent(controller)] == ["hardware_mute_type", "hardware_mute_status"]
 
     @pytest.mark.asyncio
     async def test_this_does_not_change_what_the_leds_show(self):
         controller = make_mute_controller()
         controller._handle_connection(True)  # pylint: disable=protected-access
         feed(controller, *CONNECTED)
-        controller.set_hardware_mute(HardwareMute(possible=True, muted=True))
+        controller.set_hardware_mute(HardwareMute(HardwareMuteType.CHANGEABLE, muted=True))
         await settle()
         assert controller.display is None
 
@@ -260,7 +275,7 @@ class TestTellLvaAboutTheHardwareMute:
 class TestRequestsOfLva:
     @pytest.mark.asyncio
     @pytest.mark.parametrize("event,muted", [("hardware_mute_on", True), ("hardware_mute_off", False)])
-    async def test_a_possible_request_reaches_the_device(self, event, muted, caplog):
+    async def test_a_request_for_a_changeable_hardware_mute_reaches_the_device(self, event, muted, caplog):
         requests = []
         controller = make_mute_controller(requests)
         controller._handle_connection(True)  # pylint: disable=protected-access
@@ -273,17 +288,17 @@ class TestRequestsOfLva:
         assert f"Request of LVA: {event}: switching the hardware mute" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_ignored_if_software_cannot_switch_it(self, caplog):
+    async def test_ignored_if_it_can_only_be_read(self, caplog):
         requests = []
         controller = make_mute_controller(requests)
         controller._handle_connection(True)  # pylint: disable=protected-access
-        controller.set_hardware_mute(HardwareMute(possible=False, muted=True))
+        controller.set_hardware_mute(READ_ONLY)
 
         with caplog.at_level(logging.DEBUG):
             feed(controller, ("hardware_mute_on", {}))
 
         assert requests == []
-        assert "software cannot switch" in caplog.text
+        assert "can only be read" in caplog.text
 
     @pytest.mark.asyncio
     async def test_ignored_if_the_device_has_no_hardware_mute(self, caplog):
@@ -313,7 +328,7 @@ class TestRequestsOfLva:
         assert controller.display == before
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("name,data", [("hardware_mute_status", {"status": "muted"}), ("hardware_mute_possible", {"possible": True})])
+    @pytest.mark.parametrize("name,data", [("hardware_mute_status", {"status": "muted"}), ("hardware_mute_type", {"type": "changeable"})])
     async def test_reports_of_other_peripherals_are_not_requests(self, name, data):
         requests = []
         controller = make_mute_controller(requests)
