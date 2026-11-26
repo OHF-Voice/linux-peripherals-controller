@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="60" viewBox="0 0 400 60" role="img" aria-label="Linux Peripherals Controller: button input and LED control for the Linux-Voice-Assistant.">
+  <title>Linux Peripherals Controller: button input and LED control for the Linux-Voice-Assistant.</title>
+  <defs>
+    <clipPath id="round"><rect width="400" height="60" rx="8"/></clipPath>
+  </defs>
+  <g clip-path="url(#round)">
+    <rect width="400" height="60" fill="#2b2f36"/>
+    <rect width="64" height="60" fill="#18bcf2"/>
+    <rect x="336" width="64" height="60" fill="#18bcf2"/>
+  </g>
+
+  <!-- LED ring -->
+  <g fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round">
+    <path d="M32.0 9.0L32.0 4.0" stroke-opacity="1"/>
+    <path d="M40.0 10.6L41.9 6.0" stroke-opacity="1"/>
+    <path d="M46.8 15.2L50.4 11.6" stroke-opacity="1"/>
+    <path d="M51.4 22.0L56.0 20.1" stroke-opacity="1"/>
+    <path d="M53.0 30.0L58.0 30.0" stroke-opacity="1"/>
+    <path d="M51.4 38.0L56.0 39.9" stroke-opacity="1"/>
+    <path d="M46.8 44.8L50.4 48.4" stroke-opacity="1"/>
+    <path d="M40.0 49.4L41.9 54.0" stroke-opacity="1"/>
+    <path d="M32.0 51.0L32.0 56.0" stroke-opacity="1"/>
+    <path d="M24.0 49.4L22.1 54.0" stroke-opacity="1"/>
+    <path d="M17.2 44.8L13.6 48.4" stroke-opacity="0.3"/>
+    <path d="M12.6 38.0L8.0 39.9" stroke-opacity="0.3"/>
+    <path d="M11.0 30.0L6.0 30.0" stroke-opacity="0.3"/>
+    <path d="M12.6 22.0L8.0 20.1" stroke-opacity="0.3"/>
+    <path d="M17.2 15.2L13.6 11.6" stroke-opacity="0.3"/>
+    <path d="M24.0 10.6L22.1 6.0" stroke-opacity="0.3"/>
+  </g>
+
+  <!-- Penguin with headset icon -->
+  <g transform="translate(32 31) scale(0.95) translate(-18 -22)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="18" cy="24" rx="13" ry="12" fill="#0f172a"/>
+    <ellipse cx="18" cy="27" rx="8" ry="7" fill="#fff"/>
+    <circle cx="13.5" cy="21" r="2.6" fill="#fff"/><circle cx="22.5" cy="21" r="2.6" fill="#fff"/>
+    <path d="M15.5 25l2.5 3 2.5-3z" fill="#fbbf24" stroke="none"/>
+    <path d="M4 22a14 14 0 0 1 28 0" stroke="#fbbf24" stroke-width="2.2"/>
+    <rect x="2" y="20" width="4" height="8" rx="2" fill="#fbbf24" stroke="none"/><rect x="30" y="20" width="4" height="8" rx="2" fill="#fbbf24" stroke="none"/>
+  </g>
+
+  <!-- Texts -->
+  <g font-family="Verdana, DejaVu Sans, sans-serif" fill="#fff">
+    <text x="80" y="19" font-size="12.5" font-weight="700">Linux Peripherals Controller</text>
+    <text x="80" y="34" font-size="10.5" fill="#c9d1db">Button input and LED control</text>
+    <text x="80" y="49" font-size="10.5" fill="#c9d1db">for the Linux-Voice-Assistant</text>
+  </g>
+
+  <!-- Arrows -->
+  <g fill="none" stroke="#8a94a3" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M300 30 H312 M307 25 L312 30 L307 35"/>
+  </g>
+
+  <!-- Button icon -->
+  <g transform="translate(368 31)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <circle r="11" fill="#fff" fill-opacity="0.15"/>
+    <circle r="4" fill="#fff" stroke="none"/>
+    <path d="M-14 -14 a20 20 0 0 1 6 -6 M14 -14 a20 20 0 0 0 -6 -6" stroke-opacity="0.8"/>
+  </g>
+</svg>
