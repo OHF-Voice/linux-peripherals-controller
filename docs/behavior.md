@@ -134,7 +134,7 @@ Every button has a **role**. The device type gives each button a default role, a
 |------|-------------------|
 | `action` | Controls the assistant by its state, see below. |
 | `volume_up`, `volume_down` | Sends `volume_up` / `volume_down` to LVA. Held down, it repeats after 0.5 s every 0.25 s until the button is released. Held for 1 s, it is also a long press (see below). |
-| `mute` | Toggles the microphone mute (`mute_on` / `mute_off`). |
+| `mute` | Toggles the microphone mute (`muted_on` / `muted_off`). |
 | `user` | Has no function. The press is only reported (to Home Assistant, as for every button) and sent to LVA for its sound. |
 
 For the roles other than `user` only the **single press** has an effect.
@@ -182,7 +182,7 @@ Some hardware can mute its microphone itself, with a switch or a button, and som
 - **The device is always the authority.** LPC reads the state from the device, also right after a (re)connect to LVA and after startup. Neither LVA nor Home Assistant ever sets the state: they can only ask the hardware to switch (if it is `changeable`), and the state that Home Assistant and LVA see is the one the device reports afterwards.
 - **LPC offers the entity itself,** over ESPHome, as in the table. LVA creates no entity for it.
 - **LPC tells LVA** with the events `hardware_mute_type` (`none`, `changeable` or `read_only`) and `hardware_mute_status` (`muted` or `unmuted`, not for the type `none`). Both are sent after every (re)connect to LVA, and afterwards whenever a value changes. LVA uses them only for its own processing.
-- **LVA may ask to switch it.** LVA can send the commands `hardware_mute_on` or `hardware_mute_off`. LPC carries it out only if the type is `changeable`, otherwise it ignores the request and logs why. LPC then reports the new state itself, once the hardware has changed. The same rule applies to the switch in Home Assistant.
+- **LVA may ask to switch it.** LVA can send the commands `hardware_muted_on` or `hardware_muted_off`. LPC carries it out only if the type is `changeable`, otherwise it ignores the request and logs why. LPC then reports the new state itself, once the hardware has changed. The same rule applies to the switch in Home Assistant.
 - **It is separate from the Mute of the assistant.** Neither follows the other, and the LEDs do not change. LVA will be able to sync its mute with the hardware mute with a parameter that comes later.
 - **Without a connection to LVA** nothing is told and no request can arrive. The entity in Home Assistant works as before.
 
@@ -214,7 +214,7 @@ Entities are never reordered or removed once they exist (as in LVA), so Home Ass
 
 LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version 2](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/peripheral_api/v2.md) of LVA. If the connection is lost, LPC reconnects every few seconds and shows `no_connection` meanwhile. After a reconnect it takes the state from the snapshot that LVA sends.
 
-**From LVA to LPC** (what LPC shows):
+**Events from LVA to LPC** (what LPC shows):
 
 | LVA event | Effect in LPC |
 |-----------|---------------|
@@ -227,9 +227,33 @@ LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version
 | `timer_full_data_set` | All timers (id, name, status, total, time left, percentage). Kept as state, so a device type can show several timers, for example in different colors. No function in the default setup. |
 | `media_player_status` | Kept as state. No function in the default setup, a device type may use it. |
 
-**Commands from LVA** (a request to LPC): `hardware_mute_on` and `hardware_mute_off` ask to switch the hardware mute, see [Hardware mute](#hardware-mute). Any other command is ignored and logged.
+**Commands from LVA to LPC** (a request to LPC):
 
-**From LPC to LVA** (what buttons do): the commands `listening_start`, `listening_stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `volume_silent`, `timer_stop` and `button_pressed`, as described for the roles above, and the events `hardware_mute_type` and `hardware_mute_status`, see [Hardware mute](#hardware-mute). Nothing else is sent. A message is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
+| LVA command | Effect in LPC |
+|-------------|---------------|
+| `hardware_muted_on`, `hardware_muted_off` | Mute or unmute the hardware of the microphone, only if the type is `changeable`, see [Hardware mute](#hardware-mute). |
+
+Any other command is ignored and logged.
+
+**Events from LPC to LVA** (what LPC reports about the hardware):
+
+| LPC event | When |
+|-----------|------|
+| `hardware_mute_type` | After every (re)connect to LVA and when the value changes. See [Hardware mute](#hardware-mute). |
+| `hardware_mute_status` | After every (re)connect to LVA and when the value changes. Not for the type `none`. |
+
+**Commands from LPC to LVA** (what buttons do), as described for the roles above:
+
+| LPC command | Sent when |
+|-------------|-----------|
+| `listening_start` | A button starts listening. |
+| `listening_stop` | A button stops the reply, the announcement and the pipeline. |
+| `muted_on`, `muted_off` | A button mutes or unmutes the microphone of LVA. |
+| `volume_up`, `volume_down`, `volume_set`, `volume_silent` | A button changes the volume. |
+| `timer_stop` | A button stops a ringing timer. |
+| `button_pressed` | Every press, with its press type, so LVA plays the button sound. |
+
+Nothing else is sent. A message is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
 
 LPC does not tell LVA anything about Home Assistant entities, the light, sensors or the child lock. The hardware mute is the only thing about the hardware that LVA is told, and it only uses that internally.
 

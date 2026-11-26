@@ -60,7 +60,7 @@ async def test_commands_of_lva_are_handed_over_as_requests():
     events, requests, connections = [], [], []
 
     async def handler(websocket):
-        await websocket.send(json.dumps({"command": "hardware_mute_on"}))
+        await websocket.send(json.dumps({"command": "hardware_muted_on"}))
         await websocket.send(json.dumps({"event": "state", "data": {"state": "idle"}}))
         await websocket.wait_closed()
 
@@ -69,7 +69,7 @@ async def test_commands_of_lva_are_handed_over_as_requests():
         await wait_for(lambda: len(events) == 1 and len(requests) == 1)
         task.cancel()
 
-    assert [r.name for r in requests] == ["hardware_mute_on"]
+    assert [r.name for r in requests] == ["hardware_muted_on"]
     assert [e.name for e in events] == ["state"]
 
 

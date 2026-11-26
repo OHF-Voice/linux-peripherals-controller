@@ -76,26 +76,26 @@ class TestCommandsForChanges:
 
 
 class TestDecideMuteRequest:
-    @pytest.mark.parametrize("event,muted", [("hardware_mute_on", True), ("hardware_mute_off", False)])
+    @pytest.mark.parametrize("event,muted", [("hardware_muted_on", True), ("hardware_muted_off", False)])
     def test_a_changeable_hardware_mute_is_switched(self, event, muted):
         request = decide_mute_request(event, CHANGEABLE_UNMUTED)
         assert request.muted is muted
         assert event in request.reason
 
-    @pytest.mark.parametrize("event", ["hardware_mute_on", "hardware_mute_off"])
+    @pytest.mark.parametrize("event", ["hardware_muted_on", "hardware_muted_off"])
     def test_ignored_if_it_can_only_be_read(self, event):
         request = decide_mute_request(event, READ_ONLY_MUTED)
         assert request.muted is None
         assert "can only be read" in request.reason
 
-    @pytest.mark.parametrize("event", ["hardware_mute_on", "hardware_mute_off"])
+    @pytest.mark.parametrize("event", ["hardware_muted_on", "hardware_muted_off"])
     def test_ignored_if_the_device_has_no_hardware_mute(self, event):
         request = decide_mute_request(event, NONE)
         assert request.muted is None
         assert "no hardware mute" in request.reason
 
     def test_a_request_for_the_state_it_already_has_is_still_carried_out(self):
-        assert decide_mute_request("hardware_mute_on", CHANGEABLE_MUTED).muted is True
+        assert decide_mute_request("hardware_muted_on", CHANGEABLE_MUTED).muted is True
 
     @pytest.mark.parametrize("event", ["state", "hardware_mute_status", ""])
     def test_other_names_are_no_request(self, event):

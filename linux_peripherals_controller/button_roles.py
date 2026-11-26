@@ -72,7 +72,7 @@ def _function_command(role: ButtonRole, press: str, status: LvaStatus) -> Option
     if press != "single":
         return None
     if role == ButtonRole.MUTE:
-        return LvaMessage("mute_off" if status.muted else "mute_on")
+        return LvaMessage("muted_off" if status.muted else "muted_on")
     if role == ButtonRole.ACTION:
         if status.timer_status == "ringing":
             return LvaMessage("timer_stop")

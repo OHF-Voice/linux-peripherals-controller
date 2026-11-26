@@ -64,13 +64,13 @@ class TestVolumeRoles:
 
 class TestMuteRole:
     def test_mutes_when_not_muted(self):
-        assert names(decide(ButtonRole.MUTE))[0] == "mute_on"
+        assert names(decide(ButtonRole.MUTE))[0] == "muted_on"
 
     def test_unmutes_when_muted(self):
-        assert names(decide(ButtonRole.MUTE, status=with_status(muted=True)))[0] == "mute_off"
+        assert names(decide(ButtonRole.MUTE, status=with_status(muted=True)))[0] == "muted_off"
 
     def test_unknown_mute_state_mutes(self):
-        assert names(decide(ButtonRole.MUTE, status=LvaStatus()))[0] == "mute_on"
+        assert names(decide(ButtonRole.MUTE, status=LvaStatus()))[0] == "muted_on"
 
     def test_long_press_has_no_function(self):
         assert names(decide(ButtonRole.MUTE, "long")) == ["button_pressed"]
