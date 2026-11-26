@@ -11,6 +11,7 @@ Dense codebase map for AI agents. `AGENTS.md` (imported above) holds the rules; 
 | Install dependencies | `./script/setup` |
 | Install dev dependencies (linting, testing tools) | `./script/setup --dev` |
 | All unit tests | `./script/tests` |
+| End-to-end tests (real LPC process, fake LVA, no hardware, see `tests/e2e/README.md`) | `./script/e2e` (~35 s) |
 | Tests in a specific path | `./script/tests <path>` |
 | Tests matching a pattern | `./script/tests -k <pattern>` |
 | One file / one test | `.venv/bin/python -m pytest tests/unit/test_main.py -k version -q` |
@@ -63,6 +64,7 @@ Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA 
 ## Tests
 
 - One test file per module in `tests/unit/`.
+- `tests/e2e/`: a real LPC process against a fake LVA (`fake_lva.py`, the server side of the peripheral API v2) that observes the debug log (`Display function: a -> b`) and the messages LPC sends. Every test gets its own LPC and its own fake LVA. Not part of `./script/tests`, CI runs it in `.github/workflows/e2e-tests.yml`. Wait for a log line with a fresh `log_mark()` when the same line can appear twice. New behavior that is visible over the bridge (a new display function, a new message to LVA) gets an end-to-end test next to its unit test.
 - `asyncio_mode = "auto"`, so `async def test_*` works without a decorator.
 - Pylint for tests uses `tests/.pylintrc`.
 
@@ -80,6 +82,7 @@ Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA 
 | `docs/install.md` | Docker Compose installation |
 | `docs/configuration.md` | CLI options and environment variables |
 | `docs/behavior.md` | User-visible behavior. Binding for code changes, see AGENTS.md |
+| `tests/e2e/README.md` | End-to-end test setup: fake LVA, LPC process, what is checked, CI |
 | `.github/workflow.md` | Docker build workflows (release/nightly/PR), breaking change log |
 
 ## Contribution constraints
