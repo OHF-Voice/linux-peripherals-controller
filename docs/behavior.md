@@ -2,7 +2,7 @@
 
 This page describes what Linux Peripheral Controller (LPC) does, from the user's point of view. It is the source of truth for the behavior of LPC: code changes follow it, and a change of the behavior updates it.
 
-> **Status:** specified here, implementation follows. Implemented so far: the connection to LVA (version 2, reconnecting) and the choice of the display function. Without a device driver the display function is only logged at debug level, and there are no Home Assistant entities, buttons, device types or device configuration yet.
+> **Status:** specified here, implementation follows. Implemented so far: the connection to LVA (version 2, reconnecting), the choice of the display function, device types and the device configuration (read, checked and merged). Without a device driver the display function is only logged at debug level, and there are no Home Assistant entities and no buttons or LEDs yet.
 
 ---
 
