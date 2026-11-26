@@ -89,7 +89,7 @@ These functions show the state of the assistant on the LEDs. They follow the [ev
 | `muted` | The microphone is muted. |
 | `timer_active` | A timer counts down. The time left in percent of the whole duration (`timer_remaining_percentage` of LVA) is the amount shown, for example as a progress ring. |
 | `timer_ringing` | A timer rings. |
-| `timer_timeout` | A ringing timer was not dismissed and stopped on its own (`timer_auto_stopped` of LVA). Shown once for a short time, then the previous display returns. |
+| `timer_timeout` | A ringing timer was not dismissed and stopped on its own (`auto_stopped` in the `timer_status` of LVA). Shown once for a short time, then the previous display returns. |
 | `volume` | The volume changed. Shown for a short time, then the previous display returns. |
 | `no_connection` | LVA is not connected to LPC or LVA is not connected to Home Assistant. |
 
@@ -146,8 +146,8 @@ For the roles other than `user` only the **single press** has an effect.
 | State of the assistant | Single press |
 |------------------------|--------------|
 | A timer rings | `timer_stop` |
-| `listening`, `thinking`, `tts` or `announce` | `stop` |
-| Anything else | `start_listening` |
+| `listening`, `speech_detected`, `thinking`, `tts` or `announce` | `listening_stop` |
+| Anything else | `listening_start` |
 
 The state comes from LVA. Without a connection to LVA, a press does nothing towards LVA and is logged. The report to Home Assistant does not depend on it, see above.
 
@@ -181,8 +181,8 @@ Some hardware can mute its microphone itself, with a switch or a button, and som
 
 - **The device is always the authority.** LPC reads the state from the device, also right after a (re)connect to LVA and after startup. Neither LVA nor Home Assistant ever sets the state: they can only ask the hardware to switch (if it is `changeable`), and the state that Home Assistant and LVA see is the one the device reports afterwards.
 - **LPC offers the entity itself,** over ESPHome, as in the table. LVA creates no entity for it.
-- **LPC tells LVA** with `hardware_mute_type` (`none`, `changeable` or `read_only`) and `hardware_mute_status` (`muted` or `unmuted`, not for the type `none`). Both are sent after every (re)connect to LVA, and afterwards whenever a value changes. LVA uses them only for its own processing.
-- **LVA may ask to switch it.** LVA can send `hardware_mute_on` or `hardware_mute_off`. LPC carries it out only if the type is `changeable`, otherwise it ignores the request and logs why. LPC then reports the new state itself, once the hardware has changed. The same rule applies to the switch in Home Assistant.
+- **LPC tells LVA** with the events `hardware_mute_type` (`none`, `changeable` or `read_only`) and `hardware_mute_status` (`muted` or `unmuted`, not for the type `none`). Both are sent after every (re)connect to LVA, and afterwards whenever a value changes. LVA uses them only for its own processing.
+- **LVA may ask to switch it.** LVA can send the commands `hardware_mute_on` or `hardware_mute_off`. LPC carries it out only if the type is `changeable`, otherwise it ignores the request and logs why. LPC then reports the new state itself, once the hardware has changed. The same rule applies to the switch in Home Assistant.
 - **It is separate from the Mute of the assistant.** Neither follows the other, and the LEDs do not change. LVA will be able to sync its mute with the hardware mute with a parameter that comes later.
 - **Without a connection to LVA** nothing is told and no request can arrive. The entity in Home Assistant works as before.
 
@@ -212,24 +212,24 @@ Entities are never reordered or removed once they exist (as in LVA), so Home Ass
 
 ## Bridge to LVA
 
-LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version 2](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/behavior_peripheral_api.md) of LVA. If the connection is lost, LPC reconnects every few seconds and shows `no_connection` meanwhile. After a reconnect it takes the state from the snapshot that LVA sends.
+LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version 2](https://github.com/OHF-Voice/linux-voice-assistant/blob/main/docs/peripheral_api/v2.md) of LVA. If the connection is lost, LPC reconnects every few seconds and shows `no_connection` meanwhile. After a reconnect it takes the state from the snapshot that LVA sends.
 
 **From LVA to LPC** (what LPC shows):
 
 | LVA event | Effect in LPC |
 |-----------|---------------|
 | `lva_status` | `disconnected` shows `no_connection`. |
-| `state` | `wake_word`, `listening`, `thinking`, `tts`, `announce` show the matching function. `idle` shows none. The `action` role uses the state. |
-| `pipeline_error` | Shows `pipeline_error`. |
-| `timer_auto_stopped` | Shows `timer_timeout`. |
-| `mute_status` | `muted` function. |
+| `state` | `wake_word`, `listening`, `thinking`, `tts`, `announce` show the matching function. `speech_detected` (Home Assistant hears speech) shows `listening`. `pipeline_error` shows `pipeline_error` for a short time, LVA sends `idle` right after it. `idle` shows none. The `action` role uses the state. |
+| `mute_status` | `muted` function (`status` is `muted` or `unmuted`). |
 | `volume_status` | `volume` function, with the volume as the amount shown. Not shown for the first value after a connect. |
-| `timer_status` | `active` shows `timer_active`, `ringing` shows `timer_ringing`. |
-| `timer_remaining_time`, `timer_remaining_percentage` | The amount shown by `timer_active`. A device type may show the seconds instead of the percentage. |
+| `timer_status` | `active` shows `timer_active`, `ringing` shows `timer_ringing`. `idle` with `auto_stopped: true` (a ringing timer that stopped on its own) shows `timer_timeout`. It describes the timer that is nearest to ringing. |
+| `timer_remaining_time`, `timer_remaining_percentage` | The amount shown by `timer_active`, for the timer that is nearest to ringing. A device type may show the seconds instead of the percentage. |
+| `timer_full_data_set` | All timers (id, name, status, total, time left, percentage). Kept as state, so a device type can show several timers, for example in different colors. No function in the default setup. |
 | `media_player_status` | Kept as state. No function in the default setup, a device type may use it. |
-| `hardware_mute_on`, `hardware_mute_off` | A request to switch the hardware mute, see [Hardware mute](#hardware-mute). |
 
-**From LPC to LVA** (what buttons do): `start_listening`, `stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `timer_stop` and `button_pressed`, as described for the roles above, and `hardware_mute_type` and `hardware_mute_status`, see [Hardware mute](#hardware-mute). Nothing else is sent. A command is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
+**Commands from LVA** (a request to LPC): `hardware_mute_on` and `hardware_mute_off` ask to switch the hardware mute, see [Hardware mute](#hardware-mute). Any other command is ignored and logged.
+
+**From LPC to LVA** (what buttons do): the commands `listening_start`, `listening_stop`, `mute_on`, `mute_off`, `volume_up`, `volume_down`, `volume_set`, `volume_silent`, `timer_stop` and `button_pressed`, as described for the roles above, and the events `hardware_mute_type` and `hardware_mute_status`, see [Hardware mute](#hardware-mute). Nothing else is sent. A message is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
 
 LPC does not tell LVA anything about Home Assistant entities, the light, sensors or the child lock. The hardware mute is the only thing about the hardware that LVA is told, and it only uses that internally.
 

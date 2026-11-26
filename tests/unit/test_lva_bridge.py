@@ -28,8 +28,8 @@ async def wait_for(predicate, timeout=3.0):
             await asyncio.sleep(0.01)
 
 
-def make_bridge(port, events, connections, delay=0.05):
-    return LvaBridge(f"ws://127.0.0.1:{port}/v2", events.append, connections.append, reconnect_delay=delay)
+def make_bridge(port, events, connections, delay=0.05, requests=None):
+    return LvaBridge(f"ws://127.0.0.1:{port}/v2", events.append, (requests if requests is not None else []).append, connections.append, reconnect_delay=delay)
 
 
 @pytest.mark.asyncio
@@ -56,7 +56,25 @@ async def test_connects_on_the_url_of_version_2_and_hands_over_events():
 
 
 @pytest.mark.asyncio
-async def test_messages_that_are_not_events_are_ignored_and_logged(caplog):
+async def test_commands_of_lva_are_handed_over_as_requests():
+    events, requests, connections = [], [], []
+
+    async def handler(websocket):
+        await websocket.send(json.dumps({"command": "hardware_mute_on"}))
+        await websocket.send(json.dumps({"event": "state", "data": {"state": "idle"}}))
+        await websocket.wait_closed()
+
+    async with lva_server(handler) as port:
+        task = asyncio.create_task(make_bridge(port, events, connections, requests=requests).run())
+        await wait_for(lambda: len(events) == 1 and len(requests) == 1)
+        task.cancel()
+
+    assert [r.name for r in requests] == ["hardware_mute_on"]
+    assert [e.name for e in events] == ["state"]
+
+
+@pytest.mark.asyncio
+async def test_messages_that_are_neither_events_nor_commands_are_ignored_and_logged(caplog):
     events, connections = [], []
 
     async def handler(websocket):
@@ -70,11 +88,11 @@ async def test_messages_that_are_not_events_are_ignored_and_logged(caplog):
             await wait_for(lambda: len(events) == 1)
             task.cancel()
 
-    assert "not an event" in caplog.text
+    assert "neither an event nor a command" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_commands_reach_lva():
+async def test_messages_reach_lva():
     received, events, connections = [], [], []
 
     async def handler(websocket):
@@ -86,29 +104,34 @@ async def test_commands_reach_lva():
         task = asyncio.create_task(bridge.run())
         await wait_for(lambda: bridge.connected)
 
-        assert await bridge.send_command("volume_set", {"volume": 30}) is True
-        assert await bridge.send_command("timer_stop") is True
-        await wait_for(lambda: len(received) == 2)
+        assert await bridge.send_message("volume_set", {"volume": 30}) is True
+        assert await bridge.send_message("timer_stop") is True
+        assert await bridge.send_message("hardware_mute_status", {"status": "muted"}) is True
+        await wait_for(lambda: len(received) == 3)
         task.cancel()
 
-    assert received == [{"command": "volume_set", "data": {"volume": 30}}, {"command": "timer_stop"}]
+    assert received == [
+        {"command": "volume_set", "data": {"volume": 30}},
+        {"command": "timer_stop"},
+        {"event": "hardware_mute_status", "data": {"status": "muted"}},
+    ]
 
 
 @pytest.mark.asyncio
-async def test_command_is_dropped_and_logged_when_not_connected(caplog):
-    bridge = LvaBridge("ws://127.0.0.1:1/v2", lambda e: None, lambda c: None)
+async def test_message_is_dropped_and_logged_when_not_connected(caplog):
+    bridge = LvaBridge("ws://127.0.0.1:1/v2", lambda e: None, lambda r: None, lambda c: None)
 
     with caplog.at_level(logging.DEBUG):
-        assert await bridge.send_command("stop") is False
+        assert await bridge.send_message("listening_stop") is False
 
-    assert "Dropping command 'stop': not connected to LVA" in caplog.text
+    assert "Dropping message 'listening_stop': not connected to LVA" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_unknown_command_raises():
-    bridge = LvaBridge("ws://127.0.0.1:1/v2", lambda e: None, lambda c: None)
+async def test_unknown_message_raises():
+    bridge = LvaBridge("ws://127.0.0.1:1/v2", lambda e: None, lambda r: None, lambda c: None)
     with pytest.raises(ValueError):
-        await bridge.send_command("mute_mic")
+        await bridge.send_message("mute_mic")
 
 
 @pytest.mark.asyncio
