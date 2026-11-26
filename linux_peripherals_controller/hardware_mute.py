@@ -1,7 +1,8 @@
 """The hardware mute of the microphone of a device.
 
 Some hardware can mute its microphone itself, and sometimes software can switch that. The device is always the authority: the
-driver reads the state from the device, and LPC tells LVA the kind of hardware mute and its state. Home Assistant gets its own
+driver reads the state from the device, and LPC reports the kind of hardware mute and its state to LVA (as events). LVA asks to switch it with
+the commands ``hardware_muted_on`` and ``hardware_muted_off``. Home Assistant gets its own
 entity from LPC. The functions only decide what to send, what to do and which entity to offer, they send and switch nothing.
 """
 
@@ -11,9 +12,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Optional, Tuple
 
-from .button_roles import LvaCommand
+from .lva_protocol import LvaMessage
 
-REQUEST_EVENTS = {"hardware_mute_on": True, "hardware_mute_off": False}
+REQUEST_COMMANDS = {"hardware_muted_on": True, "hardware_muted_off": False}
 
 
 class HardwareMuteType(StrEnum):
@@ -47,38 +48,38 @@ class MuteRequest:
     muted: Optional[bool] = None
 
 
-def commands_for_changes(previous: Optional[HardwareMute], current: HardwareMute) -> Tuple[LvaCommand, ...]:
+def messages_for_changes(previous: Optional[HardwareMute], current: HardwareMute) -> Tuple[LvaMessage, ...]:
     """
-    Work out what LVA has to be told about the hardware mute.
+    Work out what LVA has to be told about the hardware mute, as events.
     :param previous: What LVA was told before, None if it was told nothing (a new connection).
     :param current: What the device has now.
-    :return: The commands for LVA, ``hardware_mute_type`` first. Only the values that differ from ``previous``, all of them after a
+    :return: The events for LVA, ``hardware_mute_type`` first. Only the values that differ from ``previous``, all of them after a
     new connection. The status is only told for a device that has a hardware mute.
     """
-    commands = []
+    messages = []
     if previous is None or previous.type != current.type:
-        commands.append(LvaCommand("hardware_mute_type", {"type": current.type.value}))
+        messages.append(LvaMessage("hardware_mute_type", {"type": current.type.value}))
     if current.type != HardwareMuteType.NONE:
         status_is_new = previous is None or previous.type == HardwareMuteType.NONE or previous.muted != current.muted
         if status_is_new:
-            commands.append(LvaCommand("hardware_mute_status", {"status": "muted" if current.muted else "unmuted"}))
-    return tuple(commands)
+            messages.append(LvaMessage("hardware_mute_status", {"status": "muted" if current.muted else "unmuted"}))
+    return tuple(messages)
 
 
-def decide_mute_request(event: str, hardware: HardwareMute) -> MuteRequest:
+def decide_mute_request(command: str, hardware: HardwareMute) -> MuteRequest:
     """
     Decide what to do with a request to switch the hardware mute.
-    :param event: ``hardware_mute_on`` or ``hardware_mute_off``.
+    :param command: ``hardware_muted_on`` or ``hardware_muted_off``.
     :param hardware: The hardware mute of the device.
     :return: ``muted`` is the state to switch the hardware to, None if the request is ignored. ``reason`` says why, for the log.
     """
-    if event not in REQUEST_EVENTS:
-        return MuteRequest(f"{event} is not a request to switch the hardware mute")
+    if command not in REQUEST_COMMANDS:
+        return MuteRequest(f"{command} is not a request to switch the hardware mute")
     if hardware.type == HardwareMuteType.NONE:
-        return MuteRequest(f"{event} ignored: the device has no hardware mute")
+        return MuteRequest(f"{command} ignored: the device has no hardware mute")
     if hardware.type == HardwareMuteType.READ_ONLY:
-        return MuteRequest(f"{event} ignored: the hardware mute of this device can only be read")
-    return MuteRequest(f"{event}: switching the hardware mute", REQUEST_EVENTS[event])
+        return MuteRequest(f"{command} ignored: the hardware mute of this device can only be read")
+    return MuteRequest(f"{command}: switching the hardware mute", REQUEST_COMMANDS[command])
 
 
 def entity_for(hardware: HardwareMute) -> Optional[HardwareMuteEntity]:

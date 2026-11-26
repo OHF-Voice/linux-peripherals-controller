@@ -38,6 +38,7 @@ DEFAULT_TRANSIENT_SECONDS: Mapping[DisplayFunction, float] = {
 _PIPELINE_FUNCTIONS = {
     "wake_word": DisplayFunction.WAKE_WORD,
     "listening": DisplayFunction.LISTENING,
+    "speech_detected": DisplayFunction.LISTENING,
     "thinking": DisplayFunction.THINKING,
     "tts": DisplayFunction.TTS,
     "announce": DisplayFunction.ANNOUNCE,

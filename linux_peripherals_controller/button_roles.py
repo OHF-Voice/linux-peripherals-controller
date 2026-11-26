@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Mapping, Optional, Tuple
+from typing import Optional, Tuple
 
-from .lva_protocol import PRESS_TYPES
+from .lva_protocol import PRESS_TYPES, LvaMessage
 from .lva_status import LvaStatus
 
-_BUSY_STATES = ("listening", "thinking", "tts", "announce")
+_BUSY_STATES = ("listening", "speech_detected", "thinking", "tts", "announce")
 
 
 class ButtonRole(StrEnum):
@@ -28,19 +28,11 @@ class ButtonRole(StrEnum):
 
 
 @dataclass(frozen=True)
-class LvaCommand:
-    """A command for LVA."""
-
-    name: str
-    data: Optional[Mapping[str, Any]] = None
-
-
-@dataclass(frozen=True)
 class ButtonAction:
     """The decision for one press."""
 
     reason: str
-    commands: Tuple[LvaCommand, ...] = ()
+    commands: Tuple[LvaMessage, ...] = ()
     report_to_ha: bool = False
 
 
@@ -72,25 +64,25 @@ def decide_button_action(role: ButtonRole, press: str, status: LvaStatus, link_c
     return ButtonAction(reason, commands, report_to_ha=report)
 
 
-def _function_command(role: ButtonRole, press: str, status: LvaStatus) -> Optional[LvaCommand]:
+def _function_command(role: ButtonRole, press: str, status: LvaStatus) -> Optional[LvaMessage]:
     if role == ButtonRole.VOLUME_UP and press in ("single", "repeat"):
-        return LvaCommand("volume_up")
+        return LvaMessage("volume_up")
     if role == ButtonRole.VOLUME_DOWN and press in ("single", "repeat"):
-        return LvaCommand("volume_down")
+        return LvaMessage("volume_down")
     if press != "single":
         return None
     if role == ButtonRole.MUTE:
-        return LvaCommand("mute_off" if status.muted else "mute_on")
+        return LvaMessage("muted_off" if status.muted else "muted_on")
     if role == ButtonRole.ACTION:
         if status.timer_status == "ringing":
-            return LvaCommand("timer_stop")
+            return LvaMessage("timer_stop")
         if status.state in _BUSY_STATES:
-            return LvaCommand("stop")
-        return LvaCommand("start_listening")
+            return LvaMessage("listening_stop")
+        return LvaMessage("listening_start")
     return None
 
 
-def _button_pressed(press: str) -> Tuple[LvaCommand, ...]:
+def _button_pressed(press: str) -> Tuple[LvaMessage, ...]:
     if press not in PRESS_TYPES:
         return ()
-    return (LvaCommand("button_pressed", {"press": press}),)
+    return (LvaMessage("button_pressed", {"press": press}),)

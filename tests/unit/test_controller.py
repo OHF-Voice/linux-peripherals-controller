@@ -11,7 +11,7 @@ import websockets
 from linux_peripherals_controller.controller import Controller
 from linux_peripherals_controller.display import DisplayFunction
 from linux_peripherals_controller.hardware_mute import HardwareMute, HardwareMuteType
-from linux_peripherals_controller.lva_protocol import LvaEvent
+from linux_peripherals_controller.lva_protocol import LvaEvent, LvaRequest
 
 
 class FakeClock:
@@ -31,6 +31,10 @@ def make_controller(clock=None, shown=None):
 def feed(controller, *events):
     for name, data in events:
         controller._handle_event(LvaEvent(name, data))  # pylint: disable=protected-access
+
+
+def ask(controller, name):
+    controller._handle_request(LvaRequest(name))  # pylint: disable=protected-access
 
 
 CONNECTED = [("lva_status", {"status": "connected"}), ("state", {"state": "idle"})]
@@ -93,7 +97,7 @@ async def test_short_function_is_shown_and_ends_by_itself():
     controller._handle_connection(True)  # pylint: disable=protected-access
     feed(controller, *CONNECTED)
 
-    feed(controller, ("pipeline_error", {"reason": "x"}))
+    feed(controller, ("state", {"state": "pipeline_error"}))
     assert controller.display == DisplayFunction.PIPELINE_ERROR
     assert controller._reselect_handle is not None  # pylint: disable=protected-access
 
@@ -115,10 +119,35 @@ async def test_first_volume_is_not_shown_but_a_change_is():
 
 
 @pytest.mark.asyncio
+async def test_pipeline_error_is_shown_although_the_state_is_idle_again_at_once():
+    controller, shown = make_controller()
+    controller._handle_connection(True)  # pylint: disable=protected-access
+    feed(controller, *CONNECTED, ("state", {"state": "pipeline_error"}), ("state", {"state": "idle"}))
+    assert controller.display == DisplayFunction.PIPELINE_ERROR
+    assert shown == [None, DisplayFunction.PIPELINE_ERROR]
+
+
+@pytest.mark.asyncio
+async def test_speech_detected_shows_listening():
+    controller, _ = make_controller()
+    controller._handle_connection(True)  # pylint: disable=protected-access
+    feed(controller, *CONNECTED, ("state", {"state": "listening"}), ("state", {"state": "speech_detected"}))
+    assert controller.display == DisplayFunction.LISTENING
+
+
+@pytest.mark.asyncio
+async def test_a_timer_that_was_stopped_by_someone_shows_no_timeout():
+    controller, _ = make_controller()
+    controller._handle_connection(True)  # pylint: disable=protected-access
+    feed(controller, *CONNECTED, ("timer_status", {"status": "ringing", "auto_stopped": False}), ("timer_status", {"status": "idle", "auto_stopped": False}))
+    assert controller.display is None
+
+
+@pytest.mark.asyncio
 async def test_timer_timeout_signal():
     controller, _ = make_controller()
     controller._handle_connection(True)  # pylint: disable=protected-access
-    feed(controller, *CONNECTED, ("timer_status", {"status": "ringing"}), ("timer_auto_stopped", {"seconds": 900}), ("timer_status", {"status": "idle"}))
+    feed(controller, *CONNECTED, ("timer_status", {"status": "ringing", "auto_stopped": False}), ("timer_status", {"status": "idle", "auto_stopped": True}))
     assert controller.display == DisplayFunction.TIMER_TIMEOUT
 
 
@@ -153,12 +182,12 @@ READ_ONLY = HardwareMute(HardwareMuteType.READ_ONLY, muted=True)
 
 def make_mute_controller(requests=None):
     controller = Controller("127.0.0.1", 1, on_hardware_mute_request=requests.append if requests is not None else None, clock=FakeClock())
-    controller._bridge.send_command = AsyncMock(return_value=True)  # pylint: disable=protected-access
+    controller._bridge.send_message = AsyncMock(return_value=True)  # pylint: disable=protected-access
     return controller
 
 
 def sent(controller):
-    return [(call.args[0], call.args[1]) for call in controller._bridge.send_command.await_args_list]  # pylint: disable=protected-access
+    return [(call.args[0], call.args[1]) for call in controller._bridge.send_message.await_args_list]  # pylint: disable=protected-access
 
 
 async def settle():
@@ -199,7 +228,7 @@ class TestTellLvaAboutTheHardwareMute:
         controller._handle_connection(True)  # pylint: disable=protected-access
         controller.set_hardware_mute(POSSIBLE)
         await settle()
-        controller._bridge.send_command.reset_mock()  # pylint: disable=protected-access
+        controller._bridge.send_message.reset_mock()  # pylint: disable=protected-access
 
         controller.set_hardware_mute(HardwareMute(HardwareMuteType.CHANGEABLE, muted=True))
         await settle()
@@ -212,7 +241,7 @@ class TestTellLvaAboutTheHardwareMute:
         controller._handle_connection(True)  # pylint: disable=protected-access
         controller.set_hardware_mute(POSSIBLE)
         await settle()
-        controller._bridge.send_command.reset_mock()  # pylint: disable=protected-access
+        controller._bridge.send_message.reset_mock()  # pylint: disable=protected-access
 
         controller.set_hardware_mute(POSSIBLE)
         await settle()
@@ -227,7 +256,7 @@ class TestTellLvaAboutTheHardwareMute:
         await settle()
         controller._handle_connection(False)  # pylint: disable=protected-access
         controller.set_hardware_mute(HardwareMute(HardwareMuteType.CHANGEABLE, muted=True))
-        controller._bridge.send_command.reset_mock()  # pylint: disable=protected-access
+        controller._bridge.send_message.reset_mock()  # pylint: disable=protected-access
 
         controller._handle_connection(True)  # pylint: disable=protected-access
         await settle()
@@ -240,9 +269,9 @@ class TestTellLvaAboutTheHardwareMute:
         controller._handle_connection(True)  # pylint: disable=protected-access
         controller.set_hardware_mute(HardwareMute(HardwareMuteType.CHANGEABLE, muted=True))
         await settle()
-        controller._bridge.send_command.reset_mock()  # pylint: disable=protected-access
+        controller._bridge.send_message.reset_mock()  # pylint: disable=protected-access
 
-        feed(controller, ("hardware_mute_status", {"status": "unmuted"}), ("mute_status", {"muted": False}))
+        feed(controller, ("hardware_mute_status", {"status": "unmuted"}), ("mute_status", {"status": "unmuted"}))
         controller._handle_connection(True)  # pylint: disable=protected-access
         await settle()
 
@@ -251,12 +280,12 @@ class TestTellLvaAboutTheHardwareMute:
     @pytest.mark.asyncio
     async def test_a_command_that_could_not_be_sent_is_told_again_next_time(self):
         controller = make_mute_controller()
-        controller._bridge.send_command = AsyncMock(return_value=False)  # pylint: disable=protected-access
+        controller._bridge.send_message = AsyncMock(return_value=False)  # pylint: disable=protected-access
         controller._handle_connection(True)  # pylint: disable=protected-access
         controller.set_hardware_mute(POSSIBLE)
         await settle()
 
-        controller._bridge.send_command = AsyncMock(return_value=True)  # pylint: disable=protected-access
+        controller._bridge.send_message = AsyncMock(return_value=True)  # pylint: disable=protected-access
         controller.set_hardware_mute(POSSIBLE)
         await settle()
 
@@ -274,7 +303,7 @@ class TestTellLvaAboutTheHardwareMute:
 
 class TestRequestsOfLva:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("event,muted", [("hardware_mute_on", True), ("hardware_mute_off", False)])
+    @pytest.mark.parametrize("event,muted", [("hardware_muted_on", True), ("hardware_muted_off", False)])
     async def test_a_request_for_a_changeable_hardware_mute_reaches_the_device(self, event, muted, caplog):
         requests = []
         controller = make_mute_controller(requests)
@@ -282,7 +311,7 @@ class TestRequestsOfLva:
         controller.set_hardware_mute(POSSIBLE)
 
         with caplog.at_level(logging.DEBUG):
-            feed(controller, (event, {}))
+            ask(controller, event)
 
         assert requests == [muted]
         assert f"Request of LVA: {event}: switching the hardware mute" in caplog.text
@@ -295,7 +324,7 @@ class TestRequestsOfLva:
         controller.set_hardware_mute(READ_ONLY)
 
         with caplog.at_level(logging.DEBUG):
-            feed(controller, ("hardware_mute_on", {}))
+            ask(controller, "hardware_muted_on")
 
         assert requests == []
         assert "can only be read" in caplog.text
@@ -305,7 +334,7 @@ class TestRequestsOfLva:
         requests = []
         controller = make_mute_controller(requests)
         with caplog.at_level(logging.DEBUG):
-            feed(controller, ("hardware_mute_off", {}))
+            ask(controller, "hardware_muted_off")
         assert requests == []
         assert "the device has no hardware mute" in caplog.text
 
@@ -313,7 +342,7 @@ class TestRequestsOfLva:
     async def test_a_request_without_anyone_to_carry_it_out_is_fine(self):
         controller = make_mute_controller()
         controller.set_hardware_mute(POSSIBLE)
-        feed(controller, ("hardware_mute_on", {}))
+        ask(controller, "hardware_muted_on")
 
     @pytest.mark.asyncio
     async def test_a_request_does_not_change_the_display_or_the_status(self):
@@ -323,15 +352,17 @@ class TestRequestsOfLva:
         controller.set_hardware_mute(POSSIBLE)
         before = controller.display
 
-        feed(controller, ("hardware_mute_on", {}))
+        ask(controller, "hardware_muted_on")
 
         assert controller.display == before
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("name,data", [("hardware_mute_status", {"status": "muted"}), ("hardware_mute_type", {"type": "changeable"})])
-    async def test_reports_of_other_peripherals_are_not_requests(self, name, data):
+    @pytest.mark.parametrize("name", ["hardware_mute_status", "hardware_mute_type", "state", ""])
+    async def test_other_commands_of_lva_are_not_requests(self, name, caplog):
         requests = []
         controller = make_mute_controller(requests)
         controller.set_hardware_mute(POSSIBLE)
-        feed(controller, (name, data))
+        with caplog.at_level(logging.DEBUG):
+            ask(controller, name)
         assert requests == []
+        assert f"{name} is not a request to switch the hardware mute" in caplog.text

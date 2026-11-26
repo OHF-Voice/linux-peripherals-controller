@@ -1,7 +1,7 @@
 """Connection to the peripheral API of LVA (version 2).
 
-The bridge only carries messages: it connects, reconnects after a loss, hands every event to the controller and sends commands.
-What the events mean is decided elsewhere (``lva_status.py``).
+The bridge only carries messages: it connects, reconnects after a loss, hands every event and every request of LVA to the controller and sends messages.
+What the messages mean is decided elsewhere (``lva_status.py``).
 """
 
 from __future__ import annotations
@@ -11,9 +11,9 @@ import logging
 from typing import Any, Callable, Mapping, Optional
 
 import websockets
-from websockets.exceptions import InvalidStatusCode, WebSocketException
+from websockets.exceptions import InvalidStatus, WebSocketException
 
-from .lva_protocol import API_VERSION, LvaEvent, build_command, parse_event
+from .lva_protocol import API_VERSION, LvaEvent, LvaRequest, build_message, parse_message
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ class LvaBridge:
     Client of the peripheral API of LVA that connects again when the connection is lost.
     :param url: Address of the API, see ``lva_url()``.
     :param on_event: Called with every event of LVA.
+    :param on_request: Called with every command of LVA (a request to LPC).
     :param on_connection: Called with True when the connection is up and with False when it was lost.
     :param reconnect_delay: Seconds to wait before the next attempt to connect.
     """
@@ -31,11 +32,13 @@ class LvaBridge:
         self,
         url: str,
         on_event: Callable[[LvaEvent], None],
+        on_request: Callable[[LvaRequest], None],
         on_connection: Callable[[bool], None],
         reconnect_delay: float = 3.0,
     ) -> None:
         self._url = url
         self._on_event = on_event
+        self._on_request = on_request
         self._on_connection = on_connection
         self._reconnect_delay = reconnect_delay
         self._websocket: Optional[Any] = None
@@ -52,24 +55,24 @@ class LvaBridge:
             await self._connect_once()
             await asyncio.sleep(self._reconnect_delay)
 
-    async def send_command(self, name: str, data: Optional[Mapping[str, Any]] = None) -> bool:
+    async def send_message(self, name: str, data: Optional[Mapping[str, Any]] = None) -> bool:
         """
-        Send a command to LVA.
-        :param name: Name of the command, see ``COMMANDS``.
-        :param data: Data of the command.
-        :return: True if it was sent. False if LPC is not connected to LVA, the command is then dropped.
+        Send a command or an event to LVA.
+        :param name: Name of the message, see ``COMMANDS`` and ``REPORTED_EVENTS``.
+        :param data: Data of the message.
+        :return: True if it was sent. False if LPC is not connected to LVA, the message is then dropped.
         """
-        message = build_command(name, data)
+        message = build_message(name, data)
         websocket = self._websocket
         if websocket is None:
-            _LOGGER.debug("Dropping command '%s': not connected to LVA", name)
+            _LOGGER.debug("Dropping message '%s': not connected to LVA", name)
             return False
         try:
             await websocket.send(message)
         except WebSocketException as exc:
-            _LOGGER.debug("Dropping command '%s': %s", name, exc)
+            _LOGGER.debug("Dropping message '%s': %s", name, exc)
             return False
-        _LOGGER.debug("Sent command '%s' to LVA", name)
+        _LOGGER.debug("Sent message '%s' to LVA", name)
         return True
 
     async def _connect_once(self) -> None:
@@ -80,13 +83,15 @@ class LvaBridge:
                 _LOGGER.info("Connected to LVA at %s", self._url)
                 self._on_connection(True)
                 async for raw in websocket:
-                    event = parse_event(raw)
-                    if event is None:
-                        _LOGGER.debug("Ignoring a message of LVA that is not an event: %.200s", raw)
-                        continue
-                    self._on_event(event)
-        except InvalidStatusCode as exc:
-            self._log_failure("LVA does not offer peripheral API %s at %s (HTTP %s)", API_VERSION, self._url, exc.status_code)
+                    message = parse_message(raw)
+                    if message is None:
+                        _LOGGER.debug("Ignoring a message of LVA that is neither an event nor a command: %.200s", raw)
+                    elif isinstance(message, LvaRequest):
+                        self._on_request(message)
+                    else:
+                        self._on_event(message)
+        except InvalidStatus as exc:
+            self._log_failure("LVA does not offer peripheral API %s at %s (HTTP %s)", API_VERSION, self._url, exc.response.status_code)
         except (OSError, WebSocketException) as exc:
             self._log_failure("Cannot reach LVA at %s: %s", self._url, exc)
         finally:

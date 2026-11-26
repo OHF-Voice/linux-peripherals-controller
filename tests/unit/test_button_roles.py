@@ -2,7 +2,7 @@
 
 import pytest
 
-from linux_peripherals_controller.button_roles import ButtonAction, ButtonRole, LvaCommand, decide_button_action
+from linux_peripherals_controller.button_roles import ButtonAction, ButtonRole, LvaMessage, decide_button_action
 from linux_peripherals_controller.lva_protocol import COMMANDS
 from linux_peripherals_controller.lva_status import LvaStatus
 
@@ -25,14 +25,14 @@ def with_status(**changes):
 
 class TestActionRole:
     def test_idle_starts_listening(self):
-        assert names(decide(ButtonRole.ACTION)) == ["start_listening", "button_pressed"]
+        assert names(decide(ButtonRole.ACTION)) == ["listening_start", "button_pressed"]
 
-    @pytest.mark.parametrize("state", ["listening", "thinking", "tts", "announce"])
+    @pytest.mark.parametrize("state", ["listening", "speech_detected", "thinking", "tts", "announce"])
     def test_busy_assistant_is_stopped(self, state):
-        assert names(decide(ButtonRole.ACTION, status=with_status(state=state))) == ["stop", "button_pressed"]
+        assert names(decide(ButtonRole.ACTION, status=with_status(state=state))) == ["listening_stop", "button_pressed"]
 
     def test_wake_word_state_is_not_stopped(self):
-        assert names(decide(ButtonRole.ACTION, status=with_status(state="wake_word")))[0] == "start_listening"
+        assert names(decide(ButtonRole.ACTION, status=with_status(state="wake_word")))[0] == "listening_start"
 
     def test_ringing_timer_is_stopped_first(self):
         assert names(decide(ButtonRole.ACTION, status=with_status(timer_status="ringing", state="idle")))[0] == "timer_stop"
@@ -41,11 +41,11 @@ class TestActionRole:
         assert names(decide(ButtonRole.ACTION, status=with_status(timer_status="ringing", state="tts")))[0] == "timer_stop"
 
     def test_counting_timer_does_not_matter(self):
-        assert names(decide(ButtonRole.ACTION, status=with_status(timer_status="active")))[0] == "start_listening"
+        assert names(decide(ButtonRole.ACTION, status=with_status(timer_status="active")))[0] == "listening_start"
 
     @pytest.mark.parametrize("press", ["double", "triple", "long"])
     def test_other_presses_only_play_their_sound(self, press):
-        assert decide(ButtonRole.ACTION, press).commands == (LvaCommand("button_pressed", {"press": press}),)
+        assert decide(ButtonRole.ACTION, press).commands == (LvaMessage("button_pressed", {"press": press}),)
 
 
 class TestVolumeRoles:
@@ -55,7 +55,7 @@ class TestVolumeRoles:
 
     @pytest.mark.parametrize("role,command", [(ButtonRole.VOLUME_UP, "volume_up"), (ButtonRole.VOLUME_DOWN, "volume_down")])
     def test_repeat_sends_only_the_command(self, role, command):
-        assert decide(role, "repeat").commands == (LvaCommand(command),)
+        assert decide(role, "repeat").commands == (LvaMessage(command),)
 
     @pytest.mark.parametrize("press", ["double", "triple", "long"])
     def test_other_presses_have_no_function(self, press):
@@ -64,13 +64,13 @@ class TestVolumeRoles:
 
 class TestMuteRole:
     def test_mutes_when_not_muted(self):
-        assert names(decide(ButtonRole.MUTE))[0] == "mute_on"
+        assert names(decide(ButtonRole.MUTE))[0] == "muted_on"
 
     def test_unmutes_when_muted(self):
-        assert names(decide(ButtonRole.MUTE, status=with_status(muted=True)))[0] == "mute_off"
+        assert names(decide(ButtonRole.MUTE, status=with_status(muted=True)))[0] == "muted_off"
 
     def test_unknown_mute_state_mutes(self):
-        assert names(decide(ButtonRole.MUTE, status=LvaStatus()))[0] == "mute_on"
+        assert names(decide(ButtonRole.MUTE, status=LvaStatus()))[0] == "muted_on"
 
     def test_long_press_has_no_function(self):
         assert names(decide(ButtonRole.MUTE, "long")) == ["button_pressed"]
@@ -79,12 +79,12 @@ class TestMuteRole:
 class TestUserRole:
     @pytest.mark.parametrize("press", ["single", "double", "triple", "long"])
     def test_has_no_function_and_plays_the_sound(self, press):
-        assert decide(ButtonRole.USER, press).commands == (LvaCommand("button_pressed", {"press": press}),)
+        assert decide(ButtonRole.USER, press).commands == (LvaMessage("button_pressed", {"press": press}),)
 
 
 class TestButtonPressedForLva:
     def test_it_carries_the_press_type(self):
-        assert decide(ButtonRole.ACTION).commands[-1] == LvaCommand("button_pressed", {"press": "single"})
+        assert decide(ButtonRole.ACTION).commands[-1] == LvaMessage("button_pressed", {"press": "single"})
 
     def test_repeat_is_not_a_press_type_of_lva(self):
         assert "button_pressed" not in names(decide(ButtonRole.VOLUME_UP, "repeat"))
@@ -134,7 +134,7 @@ class TestPathsAreIndependent:
 
 class TestReason:
     def test_reason_names_the_function(self):
-        assert decide(ButtonRole.ACTION).reason == "single press of action: start_listening"
+        assert decide(ButtonRole.ACTION).reason == "single press of action: listening_start"
 
     def test_reason_for_a_press_without_function(self):
         assert decide(ButtonRole.ACTION, "long").reason == "long press of action has no function"

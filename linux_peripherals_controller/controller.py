@@ -1,7 +1,7 @@
 """The controller: connects LVA to what the device shows.
 
 It holds the status of LVA, lets the pure functions decide which display function is shown and tells the caller when that changes.
-It also tells LVA about the hardware mute of the device and passes on the requests of LVA to switch it. The device is the authority: LVA is told the state after every (re)connect and never sets it. The hardware (LEDs,
+It also reports the hardware mute of the device to LVA and passes on the requests of LVA to switch it. The device is the authority: LVA is told the state after every (re)connect and never sets it. The hardware (LEDs,
 buttons, the mute itself) is not part of it yet.
 """
 
@@ -12,11 +12,10 @@ import logging
 import time
 from typing import Callable, Optional
 
-from .button_roles import LvaCommand
 from .display import DisplayFunction, TransientDisplay, select_display_function, start_transient
-from .hardware_mute import REQUEST_EVENTS, HardwareMute, commands_for_changes, decide_mute_request
+from .hardware_mute import HardwareMute, decide_mute_request, messages_for_changes
 from .lva_bridge import LvaBridge
-from .lva_protocol import LvaEvent, lva_url
+from .lva_protocol import LvaEvent, LvaMessage, LvaRequest, lva_url
 from .lva_status import LvaStatus, apply_event
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ class Controller:
         on_hardware_mute_request: Optional[Callable[[bool], None]] = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self._bridge = LvaBridge(lva_url(lva_host, lva_port), self._handle_event, self._handle_connection)
+        self._bridge = LvaBridge(lva_url(lva_host, lva_port), self._handle_event, self._handle_request, self._handle_connection)
         self._on_display_change = on_display_change
         self._on_hardware_mute_request = on_hardware_mute_request
         self._clock = clock
@@ -83,35 +82,32 @@ class Controller:
         self._send_hardware_mute()
 
     def _handle_event(self, event: LvaEvent) -> None:
-        if event.name in REQUEST_EVENTS:
-            self._handle_mute_request(event.name)
-            return
         update = apply_event(self._status, event)
         self._status = update.status
         if update.transient is not None:
             self._transient = start_transient(update.transient, self._clock())
         self._reselect(link_connected=True)
 
-    def _handle_mute_request(self, event_name: str) -> None:
-        request = decide_mute_request(event_name, self._hardware_mute)
-        _LOGGER.debug("Request of LVA: %s", request.reason)
-        if request.muted is not None and self._on_hardware_mute_request is not None:
-            self._on_hardware_mute_request(request.muted)
+    def _handle_request(self, request: LvaRequest) -> None:
+        decision = decide_mute_request(request.name, self._hardware_mute)
+        _LOGGER.debug("Request of LVA: %s", decision.reason)
+        if decision.muted is not None and self._on_hardware_mute_request is not None:
+            self._on_hardware_mute_request(decision.muted)
 
     def _send_hardware_mute(self) -> None:
         if not self._link_connected:
             return
-        commands = commands_for_changes(self._told_lva, self._hardware_mute)
-        if not commands:
+        messages = messages_for_changes(self._told_lva, self._hardware_mute)
+        if not messages:
             return
         self._told_lva = self._hardware_mute
-        task = asyncio.get_running_loop().create_task(self._send_commands(commands))
+        task = asyncio.get_running_loop().create_task(self._send_messages(messages))
         self._sending.add(task)
         task.add_done_callback(self._sending.discard)
 
-    async def _send_commands(self, commands: tuple[LvaCommand, ...]) -> None:
-        for command in commands:
-            if not await self._bridge.send_command(command.name, command.data):
+    async def _send_messages(self, messages: tuple[LvaMessage, ...]) -> None:
+        for message in messages:
+            if not await self._bridge.send_message(message.name, message.data):
                 self._told_lva = None
                 return
 
