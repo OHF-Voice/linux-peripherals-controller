@@ -13,6 +13,8 @@ services:
     #devices:
     #  - /dev/gpiomem:/dev/gpiomem
     volumes:
+      # Device configuration (DEVICE_CONFIG=/config/device.toml)
+      - ./config:/config:ro
       # Time and zone
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro

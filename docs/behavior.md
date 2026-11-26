@@ -1,8 +1,8 @@
 # Behavior Guide
 
-This page describes what Linux Peripherals Controller (LPC) does, from the user's point of view. It is the source of truth for the behavior of LPC: code changes follow it, and a change of the behavior updates it.
+This page describes what Linux Peripheral Controller (LPC) does, from the user's point of view. It is the source of truth for the behavior of LPC: code changes follow it, and a change of the behavior updates it.
 
-> **Status:** specified here, implementation follows. Implemented so far: the connection to LVA (version 2, reconnecting), the choice of the display function, and the reports about the hardware mute to LVA with the handling of its requests, and the choice of the entity for it (the device type does not say yet which hardware mute a device has, so a driver has to report it, and the entity itself follows with the ESPHome server). Without a device driver the display function is only logged at debug level, and there are no Home Assistant entities, buttons, device types or device configuration yet.
+> **Status:** specified here, implementation follows. Implemented so far: the connection to LVA (version 2, reconnecting), the choice of the display function, device types and the device configuration (read, checked and merged), and the reports about the hardware mute to LVA with the handling of its requests and the choice of the entity for it (the device type does not say yet which hardware mute a device has, so a driver has to report it, and the entity itself follows with the ESPHome server). Without a device driver the display function is only logged at debug level, and there are no Home Assistant entities and no buttons or LEDs yet.
 
 ---
 
@@ -133,11 +133,13 @@ Every button has a **role**. The device type gives each button a default role, a
 | Role | What a press does |
 |------|-------------------|
 | `action` | Controls the assistant by its state, see below. |
-| `volume_up`, `volume_down` | Sends `volume_up` / `volume_down` to LVA. Held down, it repeats after 0.5 s every 0.25 s, so these buttons have no long press. |
+| `volume_up`, `volume_down` | Sends `volume_up` / `volume_down` to LVA. Held down, it repeats after 0.5 s every 0.25 s until the button is released. Held for 1 s, it is also a long press (see below). |
 | `mute` | Toggles the microphone mute (`mute_on` / `mute_off`). |
-| `user` | Does nothing in LPC. The press is reported to Home Assistant, see [Home Assistant](#home-assistant). |
+| `user` | Has no function. The press is only reported (to Home Assistant, as for every button) and sent to LVA for its sound. |
 
-For the roles other than `user` only the **single press** has an effect. A button with such a role is **not** reported to Home Assistant, unless `report_to_ha = true` is set for it in the device configuration. Then every press type is reported in addition.
+For the roles other than `user` only the **single press** has an effect.
+
+**Every press is reported to Home Assistant.** Every button, whatever its role, reports every press (single, double, triple and long) to Home Assistant, see [Home Assistant](#home-assistant). This does not depend on LVA (connected or not), on the child lock or on the function of the button. The `repeat` of a volume button is not a press and is not reported. A volume button that is held for 1 s also reports one `long` press while it goes on repeating.
 
 **The `action` role.** One button does the sensible thing for what the assistant is doing right now:
 
@@ -147,9 +149,9 @@ For the roles other than `user` only the **single press** has an effect. A butto
 | `listening`, `thinking`, `tts` or `announce` | `stop` |
 | Anything else | `start_listening` |
 
-The state comes from LVA. Without a connection to LVA, a press does nothing towards LVA and is logged. The report to Home Assistant does not depend on it: a press that is to be reported (the role `user`, or `report_to_ha`) is reported also while LVA is not connected.
+The state comes from LVA. Without a connection to LVA, a press does nothing towards LVA and is logged. The report to Home Assistant does not depend on it, see above.
 
-**Button sounds.** Every press of a button is also sent to LVA as `button_pressed` with its press type, so LVA plays the sound for it (double, triple and long press; a single press has none). This applies to all roles. A press that LPC ignores (child lock, no connection to LVA) is not sent.
+**Button sounds.** Every press of a button is also sent to LVA as `button_pressed` with its press type, so LVA plays the sound for it (double, triple and long press; a single press has none). This applies to all roles. It is not sent while the child lock is on or LVA is not connected.
 
 **Volume sounds.** A volume change by `volume_up` or `volume_down` plays a short step sound in LVA. At the limit (`volume_up` at 100 %, `volume_down` at 0 %) nothing changes and a different short sound (the limit) plays.
 
@@ -159,11 +161,11 @@ The state comes from LVA. Without a connection to LVA, a press does nothing towa
 
 The child lock is a switch in Home Assistant (`Child Lock`). While it is on:
 
-- The buttons with a role other than `user` do nothing.
-- Buttons with the role `user` still report to Home Assistant.
+- No button sends anything to LVA: no function (start listening, stop, mute, volume, timer stop) and no `button_pressed` for the sound. The child lock only concerns LVA.
+- Every press is still reported to Home Assistant.
 - The LEDs and everything that comes from LVA or Home Assistant are not affected.
 
-The state is stored and restored after a restart. LVA does not know about the child lock. LPC alone enforces it.
+The state is stored and restored after a restart. LVA does not know about the child lock. LPC alone enforces it. Home Assistant shows the state, because the `Child Lock` switch has a state: it is on or off there, and follows a change from any side.
 
 ---
 
@@ -199,7 +201,7 @@ LPC is discovered by Home Assistant over mDNS as an ESPHome device, like LVA (`-
 | Entity | Type | Notes |
 |--------|------|-------|
 | `LED` | Light | On/off, color and brightness. Only if the device has LEDs. |
-| `<Button name>` | Event | One per button with the role `user` (or `report_to_ha`). Event types `single_press`, `double_press`, `triple_press`, `long_press`. |
+| `<Button name>` | Event | One per button, whatever its role. Event types `single_press`, `double_press`, `triple_press`, `long_press`. |
 | `Child Lock` | Switch | See [Child lock](#child-lock). |
 | `Hardware Mute` | Switch or binary sensor | Only for a device with a hardware mute: a switch if it is `changeable`, a binary sensor (status only) if it is `read_only`. See [Hardware mute](#hardware-mute). |
 | `<Sensor name>` | Sensor | One per sensor of the device type. |

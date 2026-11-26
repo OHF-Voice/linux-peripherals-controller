@@ -98,11 +98,25 @@ class TestLongPress:
 class TestRepeat:
     def test_holding_repeats_after_the_start_delay(self):
         _, reported = play(REPEAT, [(0.0, "down"), (0.4, "tick"), (0.5, "tick"), (0.7, "tick"), (0.75, "tick"), (1.0, "tick")])
-        assert reported == [(0.5, "repeat"), (0.75, "repeat"), (1.0, "repeat")]
+        assert reported == [(0.5, "repeat"), (0.75, "repeat"), (1.0, "repeat"), (1.0, "long")]
 
-    def test_there_is_no_long_press_on_a_button_that_repeats(self):
-        _, reported = play(REPEAT, [(0.0, "down"), (0.5, "tick"), (1.0, "tick"), (1.5, "tick")])
-        assert "long" not in [p for _, p in reported]
+    def test_a_button_that_repeats_also_has_a_long_press_once(self):
+        _, reported = play(REPEAT, [(0.0, "down"), (0.5, "tick"), (0.75, "tick"), (1.0, "tick"), (1.25, "tick"), (1.5, "tick")])
+        assert [p for _, p in reported].count("long") == 1
+        assert (1.0, "long") in reported
+
+    def test_the_repeat_goes_on_after_the_long_press(self):
+        _, reported = play(REPEAT, [(0.0, "down"), (0.5, "tick"), (0.75, "tick"), (1.0, "tick"), (1.25, "tick"), (1.5, "tick")])
+        assert [p for _, p in reported] == ["repeat", "repeat", "repeat", "long", "repeat", "repeat"]
+
+    def test_repeat_and_long_press_that_are_due_in_one_tick_come_in_that_order(self):
+        _, reported = play(REPEAT, [(0.0, "down"), (1.2, "tick")])
+        assert [p for _, p in reported] == ["repeat", "long"]
+
+    def test_release_after_the_long_press_reports_nothing_more(self):
+        state, reported = play(REPEAT, [(0.0, "down"), (1.0, "tick"), (1.1, "up"), (1.5, "tick")])
+        assert "single" not in [p for _, p in reported]
+        assert state == ButtonState()
 
     def test_release_stops_the_repeat(self):
         state, reported = play(REPEAT, [(0.0, "down"), (0.5, "tick"), (0.6, "up"), (1.0, "tick")])
@@ -144,10 +158,16 @@ class TestNextDeadline:
         assert next_deadline(ButtonState(down_since=2.0), REPEAT) == 2.5
 
     def test_repeating_button_waits_for_the_next_repeat(self):
-        assert next_deadline(ButtonState(down_since=2.0, hold_reported=True, next_repeat=2.75), REPEAT) == 2.75
+        assert next_deadline(ButtonState(down_since=2.0, repeating=True, next_repeat=2.75), REPEAT) == 2.75
+
+    def test_repeating_button_waits_for_the_long_press_if_it_comes_first(self):
+        assert next_deadline(ButtonState(down_since=2.0, repeating=True, next_repeat=3.5), REPEAT) == 3.0
+
+    def test_repeating_button_after_the_long_press_waits_for_the_repeat(self):
+        assert next_deadline(ButtonState(down_since=2.0, repeating=True, long_reported=True, next_repeat=3.25), REPEAT) == 3.25
 
     def test_held_after_a_long_press_waits_for_nothing(self):
-        assert next_deadline(ButtonState(down_since=2.0, hold_reported=True), CONFIG) is None
+        assert next_deadline(ButtonState(down_since=2.0, long_reported=True), CONFIG) is None
 
     def test_released_press_waits_for_the_gap(self):
         assert next_deadline(ButtonState(presses=1, last_release=2.0), CONFIG) == 2.25

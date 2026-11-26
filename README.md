@@ -1,4 +1,4 @@
-# Linux-Peripherals-Controller
+# Linux Peripheral Controller
 
 [![CI](https://github.com/OHF-Voice/linux-peripherals-controller/actions/workflows/docker-build-release.yml/badge.svg)](https://github.com/OHF-Voice/linux-peripherals-controller/actions/workflows/docker-build-release.yml) [![GitHub License](https://img.shields.io/github/license/OHF-Voice/linux-peripherals-controller)](https://github.com/OHF-Voice/linux-peripherals-controller/blob/main/LICENSE.md)
 
@@ -8,6 +8,8 @@ It connects to the [peripheral WebSocket API](https://github.com/OHF-Voice/linux
 
 > [!NOTE]
 > LPC is under construction. So far it connects to LVA and works out what the LEDs would show. The peripheral drivers are added later.
+
+![Linux Peripheral Controller](docs/images/banner.svg)
 
 [![A project from the Open Home Foundation](https://www.openhomefoundation.org/badges/ohf-project.png)](https://www.openhomefoundation.org/)
 
@@ -33,6 +35,8 @@ There is an environment variable for each parameter, see [Configuration](docs/co
 
 | Parameter | Environment variable | Default | Description |
 |-----------|----------------------|---------|-------------|
+| `--device-type` | `DEVICE_TYPE` | | Type of the device, required (for example `respeaker_2mic_v1`) |
+| `--device-config` | `DEVICE_CONFIG` | | TOML file with the settings of this device |
 | `--lva-host` | `LVA_HOST` | `localhost` | Host of the LVA peripheral WebSocket API |
 | `--lva-port` | `LVA_PORT` | `6055` | Port of the LVA peripheral WebSocket API |
 | `--debug` | `ENABLE_DEBUG=1` | off | Print DEBUG messages to console |
