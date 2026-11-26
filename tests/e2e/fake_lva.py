@@ -77,7 +77,7 @@ class FakeLva:
     async def send_command(self, name: str, data: Optional[Dict[str, Any]] = None) -> None:
         """
         Send a command to LPC, as LVA does when it asks for something.
-        :param name: Name of the command, for example ``hardware_mute_on``.
+        :param name: Name of the command, for example ``hardware_muted_on``.
         :param data: Data of the command.
         """
         await self.send_raw(json.dumps({"command": name, **({"data": data} if data is not None else {})}))

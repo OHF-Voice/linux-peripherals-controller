@@ -16,10 +16,10 @@ async def test_requests_to_switch_the_hardware_mute_are_ignored_without_hardware
     """LVA asks to switch the hardware mute of a device that has none: LPC logs why it ignores it and the display does not change."""
     mark = lpc.log_mark()
 
-    await fake_lva.send_command("hardware_mute_on")
-    await lpc.wait_for_log_line("hardware_mute_on ignored: the device has no hardware mute", mark)
-    await fake_lva.send_command("hardware_mute_off")
-    await lpc.wait_for_log_line("hardware_mute_off ignored: the device has no hardware mute", mark)
+    await fake_lva.send_command("hardware_muted_on")
+    await lpc.wait_for_log_line("hardware_muted_on ignored: the device has no hardware mute", mark)
+    await fake_lva.send_command("hardware_muted_off")
+    await lpc.wait_for_log_line("hardware_muted_off ignored: the device has no hardware mute", mark)
 
     assert lpc.displays_since(mark) == []
 
