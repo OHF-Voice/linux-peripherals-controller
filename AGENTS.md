@@ -10,9 +10,9 @@
 
 ## Project Overview
 
-LPC always means **Linux Peripherals Controller**, this project. LVA means **Linux Voice Assistant** ([OHF-Voice/linux-voice-assistant](https://github.com/OHF-Voice/linux-voice-assistant)).
+LPC always means **Linux Peripheral Controller**, this project. LVA means **Linux Voice Assistant** ([OHF-Voice/linux-voice-assistant](https://github.com/OHF-Voice/linux-voice-assistant)).
 
-**Linux Peripherals Controller (LPC)** - One service that runs the peripheral drivers (LED rings, buttons, HAT boards, USB devices) for LVA. It connects to the peripheral WebSocket API of LVA and is built and operated as a Docker container.
+**Linux Peripheral Controller (LPC)** - One service that runs the peripheral drivers (LED rings, buttons, HAT boards, USB devices) for LVA. It connects to the peripheral WebSocket API of LVA and is built and operated as a Docker container.
 
 ### Purpose
 - Replaces the separate peripheral scripts in `examples/` of LVA (Satellite1 HAT, ReSpeaker 2mic/4mic HAT, ReSpeaker USB Mic Array, Jabra Speak 410) with one service

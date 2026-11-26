@@ -1,6 +1,6 @@
-# Linux Peripherals Controller - AI Policy
+# Linux Peripheral Controller - AI Policy
 
-We support using AI (i.e., LLMs) as tools when contributing to Linux Peripherals Controller. However, you are responsible for any contributions you submit, and we are responsible for any contributions we merge and release. We hold a high bar for all contributions to our projects.
+We support using AI (i.e., LLMs) as tools when contributing to Linux Peripheral Controller. However, you are responsible for any contributions you submit, and we are responsible for any contributions we merge and release. We hold a high bar for all contributions to our projects.
 
 Our maintainers dedicate their time and expertise to reviewing contributions. Submitting AI-generated content that you have not personally reviewed and understood wastes that time and will not be accepted.
 
