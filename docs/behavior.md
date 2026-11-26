@@ -237,21 +237,22 @@ Any other command is ignored and logged.
 
 **Events from LPC to LVA** (what LPC reports about the hardware):
 
-| LPC event | When |
-|-----------|------|
-| `hardware_mute_type` | After every (re)connect to LVA and when the value changes. See [Hardware mute](#hardware-mute). |
-| `hardware_mute_status` | After every (re)connect to LVA and when the value changes. Not for the type `none`. |
+| LPC event | Data | When |
+|-----------|------|------|
+| `hardware_mute_type` | `{"type": "none" \| "changeable" \| "read_only"}` | After every (re)connect to LVA and when the value changes. See [Hardware mute](#hardware-mute). |
+| `hardware_mute_status` | `{"status": "muted" \| "unmuted"}` | After every (re)connect to LVA and when the value changes. Not for the type `none`. |
 
 **Commands from LPC to LVA** (what buttons do), as described for the roles above:
 
-| LPC command | Sent when |
-|-------------|-----------|
-| `listening_start` | A button starts listening. |
-| `listening_stop` | A button stops the reply, the announcement and the pipeline. |
-| `muted_on`, `muted_off` | A button mutes or unmutes the microphone of LVA. |
-| `volume_up`, `volume_down`, `volume_set`, `volume_silent` | A button changes the volume. |
-| `timer_stop` | A button stops a ringing timer. |
-| `button_pressed` | Every press, with its press type, so LVA plays the button sound. |
+| LPC command | Data | Sent when |
+|-------------|------|-----------|
+| `listening_start` | none | A button starts listening. |
+| `listening_stop` | none | A button stops the reply, the announcement and the pipeline. |
+| `muted_on`, `muted_off` | none | A button mutes or unmutes the microphone of LVA. |
+| `volume_up`, `volume_down` | none | A button changes the volume. |
+| `volume_set`, `volume_silent` | `{"volume": int}` for `volume_set`, otherwise none | No button uses them yet. |
+| `timer_stop` | none | A button stops a ringing timer. |
+| `button_pressed` | `{"press": "single" \| "double" \| "triple" \| "long"}` | Every press, so LVA plays the button sound. Only the press type is sent, not which button. |
 
 Nothing else is sent. A message is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
 
