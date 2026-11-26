@@ -1,4 +1,4 @@
-# Linux-Peripherals-Controller
+# Linux Peripheral Controller
 
 [![CI](https://github.com/OHF-Voice/linux-peripherals-controller/actions/workflows/docker-build-release.yml/badge.svg)](https://github.com/OHF-Voice/linux-peripherals-controller/actions/workflows/docker-build-release.yml) [![GitHub License](https://img.shields.io/github/license/OHF-Voice/linux-peripherals-controller)](https://github.com/OHF-Voice/linux-peripherals-controller/blob/main/LICENSE.md)
 

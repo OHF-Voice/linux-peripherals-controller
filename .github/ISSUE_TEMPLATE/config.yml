@@ -2,7 +2,7 @@ blank_issues_enabled: false
 contact_links:
   - name: "🐛 Report a bug"
     url: https://github.com/OHF-Voice/linux-peripherals-controller/issues/new?template=bug_report.md
-    about: Report bugs in the Linux Peripherals Controller.
+    about: Report bugs in the Linux Peripheral Controller.
   - name: "💬 Discord community & support"
     url: https://discord.com/channels/330944238910963714/1464387232201703547
     about: Chat with the community and get help from other users.

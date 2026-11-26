@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# AI Working Guide for Linux Peripherals Controller
+# AI Working Guide for Linux Peripheral Controller
 
 Dense codebase map for AI agents. `AGENTS.md` (imported above) holds the rules; this file holds the knowledge needed to change code without re-reading every module. When this file and the code disagree, the code wins. Fix this file in the same change.
 

@@ -1,4 +1,4 @@
-# Linux-Peripherals-Controller - Installation
+# Linux Peripheral Controller - Installation
 
 LPC runs as a Docker container next to [Linux-Voice-Assistant](https://github.com/OHF-Voice/linux-voice-assistant) (LVA) and connects to its peripheral WebSocket API on port 6055.
 
