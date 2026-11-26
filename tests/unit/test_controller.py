@@ -303,7 +303,7 @@ class TestTellLvaAboutTheHardwareMute:
 
 class TestRequestsOfLva:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("event,muted", [("hardware_mute_on", True), ("hardware_mute_off", False)])
+    @pytest.mark.parametrize("event,muted", [("hardware_muted_on", True), ("hardware_muted_off", False)])
     async def test_a_request_for_a_changeable_hardware_mute_reaches_the_device(self, event, muted, caplog):
         requests = []
         controller = make_mute_controller(requests)
@@ -324,7 +324,7 @@ class TestRequestsOfLva:
         controller.set_hardware_mute(READ_ONLY)
 
         with caplog.at_level(logging.DEBUG):
-            ask(controller, "hardware_mute_on")
+            ask(controller, "hardware_muted_on")
 
         assert requests == []
         assert "can only be read" in caplog.text
@@ -334,7 +334,7 @@ class TestRequestsOfLva:
         requests = []
         controller = make_mute_controller(requests)
         with caplog.at_level(logging.DEBUG):
-            ask(controller, "hardware_mute_off")
+            ask(controller, "hardware_muted_off")
         assert requests == []
         assert "the device has no hardware mute" in caplog.text
 
@@ -342,7 +342,7 @@ class TestRequestsOfLva:
     async def test_a_request_without_anyone_to_carry_it_out_is_fine(self):
         controller = make_mute_controller()
         controller.set_hardware_mute(POSSIBLE)
-        ask(controller, "hardware_mute_on")
+        ask(controller, "hardware_muted_on")
 
     @pytest.mark.asyncio
     async def test_a_request_does_not_change_the_display_or_the_status(self):
@@ -352,7 +352,7 @@ class TestRequestsOfLva:
         controller.set_hardware_mute(POSSIBLE)
         before = controller.display
 
-        ask(controller, "hardware_mute_on")
+        ask(controller, "hardware_muted_on")
 
         assert controller.display == before
 

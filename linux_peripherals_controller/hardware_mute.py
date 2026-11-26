@@ -2,7 +2,7 @@
 
 Some hardware can mute its microphone itself, and sometimes software can switch that. The device is always the authority: the
 driver reads the state from the device, and LPC reports the kind of hardware mute and its state to LVA (as events). LVA asks to switch it with
-the commands ``hardware_mute_on`` and ``hardware_mute_off``. Home Assistant gets its own
+the commands ``hardware_muted_on`` and ``hardware_muted_off``. Home Assistant gets its own
 entity from LPC. The functions only decide what to send, what to do and which entity to offer, they send and switch nothing.
 """
 
@@ -14,7 +14,7 @@ from typing import Optional, Tuple
 
 from .lva_protocol import LvaMessage
 
-REQUEST_COMMANDS = {"hardware_mute_on": True, "hardware_mute_off": False}
+REQUEST_COMMANDS = {"hardware_muted_on": True, "hardware_muted_off": False}
 
 
 class HardwareMuteType(StrEnum):
@@ -69,7 +69,7 @@ def messages_for_changes(previous: Optional[HardwareMute], current: HardwareMute
 def decide_mute_request(command: str, hardware: HardwareMute) -> MuteRequest:
     """
     Decide what to do with a request to switch the hardware mute.
-    :param command: ``hardware_mute_on`` or ``hardware_mute_off``.
+    :param command: ``hardware_muted_on`` or ``hardware_muted_off``.
     :param hardware: The hardware mute of the device.
     :return: ``muted`` is the state to switch the hardware to, None if the request is ignored. ``reason`` says why, for the log.
     """

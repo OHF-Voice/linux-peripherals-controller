@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional
 
 API_VERSION = "v2"
-COMMANDS = frozenset({"listening_start", "listening_stop", "mute_on", "mute_off", "volume_up", "volume_down", "volume_set", "volume_silent", "timer_stop", "button_pressed"})
+COMMANDS = frozenset({"listening_start", "listening_stop", "muted_on", "muted_off", "volume_up", "volume_down", "volume_set", "volume_silent", "timer_stop", "button_pressed"})
 REPORTED_EVENTS = frozenset({"hardware_mute_status", "hardware_mute_type"})
 PRESS_TYPES = ("single", "double", "triple", "long")
 

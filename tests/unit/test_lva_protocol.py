@@ -26,7 +26,7 @@ class TestParseMessage:
         assert parse_message('{"event": "state", "data": 5}') == LvaEvent("state", {})
 
     def test_a_command_of_lva_is_a_request(self):
-        assert parse_message('{"command": "hardware_mute_on"}') == LvaRequest("hardware_mute_on", {})
+        assert parse_message('{"command": "hardware_muted_on"}') == LvaRequest("hardware_muted_on", {})
 
     def test_a_request_keeps_its_data(self):
         assert parse_message('{"command": "x", "data": {"a": 1}}') == LvaRequest("x", {"a": 1})
@@ -56,7 +56,7 @@ class TestBuildMessage:
         assert name not in COMMANDS
         assert "event" in json.loads(build_message(name))
 
-    @pytest.mark.parametrize("name", ["stop", "start_listening", "hardware_mute_on", "hardware_mute_off", "mute_mic", "register_light", ""])
+    @pytest.mark.parametrize("name", ["stop", "start_listening", "hardware_muted_on", "hardware_muted_off", "mute_mic", "register_light", ""])
     def test_old_and_unknown_names_are_refused(self, name):
         with pytest.raises(ValueError):
             build_message(name)
