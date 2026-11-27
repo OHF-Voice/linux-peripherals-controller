@@ -125,7 +125,7 @@ async def test_changed_volume_is_shown_for_a_short_time(fake_lva: FakeLva, lpc: 
 
 
 async def test_lva_not_connected_to_home_assistant_shows_no_connection(fake_lva: FakeLva, lpc: LpcProcess) -> None:
-    """While LVA is not connected to Home Assistant the display shows no_connection over everything else, and what was shown before returns with the connection."""
+    """While LVA is not connected to Home Assistant the display shows no_connection over everything but a ringing timer, and what was shown before returns with the connection."""
     mark = lpc.log_mark()
 
     await fake_lva.send_event("state", {"state": "listening"})
@@ -137,6 +137,33 @@ async def test_lva_not_connected_to_home_assistant_shows_no_connection(fake_lva:
     await lpc.wait_for_display("tts", mark)
 
     assert lpc.displays_since(mark) == ["listening", "no_connection", "listening", "tts"]
+
+
+async def test_timer_that_rings_without_home_assistant_wins_over_no_connection(fake_lva: FakeLva, lpc: LpcProcess) -> None:
+    """LVA rings a timer also while it is not connected to Home Assistant, so the ringing timer is shown over no_connection."""
+    mark = lpc.log_mark()
+
+    await fake_lva.send_event("lva_status", {"status": "disconnected"})
+    await lpc.wait_for_display("no_connection", mark)
+    await fake_lva.send_event("timer_status", {"status": "ringing", "auto_stopped": False})
+    await lpc.wait_for_display("timer_ringing", mark)
+    ringing = lpc.log_mark()
+    await fake_lva.send_event("timer_status", {"status": "idle", "auto_stopped": False})
+    await lpc.wait_for_display("no_connection", ringing)
+
+    assert lpc.displays_since(mark) == ["no_connection", "timer_ringing", "no_connection"]
+
+
+async def test_paused_timer_shows_nothing(fake_lva: FakeLva, lpc: LpcProcess) -> None:
+    """A paused timer has no display function: the counting timer ends and the background shows."""
+    mark = lpc.log_mark()
+
+    await fake_lva.send_event("timer_status", {"status": "active", "auto_stopped": False})
+    await lpc.wait_for_display("timer_active", mark)
+    await fake_lva.send_event("timer_status", {"status": "paused", "auto_stopped": False})
+    await lpc.wait_for_display(None, mark)
+
+    assert lpc.displays_since(mark) == ["timer_active", "None"]
 
 
 async def test_messages_that_make_no_sense_are_ignored(fake_lva: FakeLva, lpc: LpcProcess) -> None:

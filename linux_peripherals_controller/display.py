@@ -79,13 +79,16 @@ def select_display_function(status: LvaStatus, link_connected: bool, transient: 
     :param transient: The function shown for a short time, None if there is none.
     :param now: The current time.
     :return: The function with the highest priority, None if the LEDs show the background (the light of Home Assistant).
-    Order: no connection, ringing timer, voice pipeline, short functions (error, timeout, volume), muted, counting timer.
-    No connection is shown while LPC is not connected to LVA, and while LVA is not connected to Home Assistant or has not said so yet.
+    Order: no connection to LVA, ringing timer, no connection of LVA to Home Assistant, voice pipeline, short functions (error,
+    timeout, volume), muted, counting timer. A timer rings also while LVA is not connected to Home Assistant, so it wins over that.
+    A paused timer has no function.
     """
-    if not link_connected or status.lva_status != "connected":
+    if not link_connected:
         return DisplayFunction.NO_CONNECTION
     if status.timer_status == "ringing":
         return DisplayFunction.TIMER_RINGING
+    if status.lva_status != "connected":
+        return DisplayFunction.NO_CONNECTION
     if status.state in _PIPELINE_FUNCTIONS:
         return _PIPELINE_FUNCTIONS[status.state]
     if transient is not None and now < transient.ends_at:

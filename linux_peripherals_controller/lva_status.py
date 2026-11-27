@@ -30,7 +30,8 @@ class LvaStatus:
     """
     The status of LVA. A value is None until LVA has reported it.
 
-    ``timer_status`` and the two ``timer_remaining_*`` values describe the timer that is nearest to ringing, ``timers`` holds all of them.
+    ``timer_status`` and the two ``timer_remaining_*`` values describe the timer that LVA shows (a ringing one, else the one that ends first,
+    else a paused one), ``timers`` holds all that ring, count down or are paused.
     """
 
     lva_status: Optional[str] = None

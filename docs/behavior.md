@@ -87,23 +87,24 @@ These functions show the state of the assistant on the LEDs. They follow the [ev
 | `announce` | An announcement plays. |
 | `pipeline_error` | The voice pipeline failed. Shown once for a short time (three red flashes in the default pattern), then the previous display returns. |
 | `muted` | The microphone is muted. |
-| `timer_active` | A timer counts down. The time left in percent of the whole duration (`timer_remaining_percentage` of LVA) is the amount shown, for example as a progress ring. |
-| `timer_ringing` | A timer rings. |
+| `timer_active` | A timer counts down. The time left in percent of the whole duration (`timer_remaining_percentage` of LVA) is the amount shown, for example as a progress ring. A paused timer shows nothing. |
+| `timer_ringing` | A timer rings. LVA rings timers also while it is not connected to Home Assistant, so this is shown over `no_connection` then. |
 | `timer_timeout` | A ringing timer was not dismissed and stopped on its own (`auto_stopped` in the `timer_status` of LVA). Shown once for a short time, then the previous display returns. |
 | `volume` | The volume changed. Shown for a short time, then the previous display returns. |
-| `no_connection` | LVA is not connected to LPC or LVA is not connected to Home Assistant. |
+| `no_connection` | LVA is not connected to LPC or LVA is not connected to Home Assistant. A ringing timer is shown over it while LPC is connected to LVA. |
 
 ### What is shown when
 
 Several things can be true at once, so the display follows a fixed order, highest first:
 
-1. `no_connection`
+1. `no_connection` because LPC is not connected to LVA
 2. `timer_ringing`
-3. `wake_word`, `listening`, `thinking`, `tts`, `announce`
-4. `pipeline_error`, `timer_timeout` and `volume` (short, over everything below them)
-5. `muted`
-6. `timer_active`
-7. The background: the light of Home Assistant, see below.
+3. `no_connection` because LVA is not connected to Home Assistant
+4. `wake_word`, `listening`, `thinking`, `tts`, `announce`
+5. `pipeline_error`, `timer_timeout` and `volume` (short, over everything below them)
+6. `muted`
+7. `timer_active`
+8. The background: the light of Home Assistant, see below.
 
 Only the highest entry is shown. When it ends, the next one appears.
 
@@ -218,13 +219,13 @@ LPC connects to `ws://<--lva-host>:<--lva-port>/v2`, the [peripheral API version
 
 | LVA event | Effect in LPC |
 |-----------|---------------|
-| `lva_status` | `disconnected` shows `no_connection`. |
+| `lva_status` | `disconnected` shows `no_connection`, unless a timer rings. |
 | `state` | `wake_word`, `listening`, `thinking`, `tts`, `announce` show the matching function. `speech_detected` (Home Assistant hears speech) shows `listening`. `pipeline_error` shows `pipeline_error` for a short time, LVA sends `idle` right after it. `idle` shows none. The `action` role uses the state. |
 | `mute_status` | `muted` function (`status` is `muted` or `unmuted`). |
 | `volume_status` | `volume` function, with the volume as the amount shown. Not shown for the first value after a connect. |
-| `timer_status` | `active` shows `timer_active`, `ringing` shows `timer_ringing`. `idle` with `auto_stopped: true` (a ringing timer that stopped on its own) shows `timer_timeout`. It describes the timer that is nearest to ringing. |
-| `timer_remaining_time`, `timer_remaining_percentage` | The amount shown by `timer_active`, for the timer that is nearest to ringing. A device type may show the seconds instead of the percentage. |
-| `timer_full_data_set` | All timers (id, name, status, total, time left, percentage). Kept as state, so a device type can show several timers, for example in different colors. No function in the default setup. |
+| `timer_status` | `active` shows `timer_active`, `ringing` shows `timer_ringing`. `paused` (only paused timers left) shows none. `idle` with `auto_stopped: true` (the last ringing timer stopped on its own) shows `timer_timeout`. It describes the timer that LVA shows: a ringing one, else the one that counts down and ends first, else a paused one. |
+| `timer_remaining_time`, `timer_remaining_percentage` | The amount shown by `timer_active`, for the timer that LVA shows. A device type may show the seconds instead of the percentage. |
+| `timer_full_data_set` | All timers that ring, count down or are paused (id, name, status `ringing`, `active` or `paused`, total, time left, percentage). Kept as state, so a device type can show several timers, for example in different colors. No function in the default setup. |
 | `media_player_status` | Kept as state. No function in the default setup, a device type may use it. |
 
 **Commands from LVA to LPC** (a request to LPC):
@@ -251,7 +252,7 @@ Any other command is ignored and logged.
 | `muted_on`, `muted_off` | none | A button mutes or unmutes the microphone of LVA. |
 | `volume_up`, `volume_down` | none | A button changes the volume. |
 | `volume_set`, `volume_silent` | `{"volume": int}` for `volume_set`, otherwise none | No button uses them yet. |
-| `timer_stop` | none | A button stops a ringing timer. |
+| `timer_stop` | none | A button stops all ringing timers, also while LVA is not connected to Home Assistant. |
 | `button_pressed` | `{"press": "single" \| "double" \| "triple" \| "long"}` | Every press, so LVA plays the button sound. Only the press type is sent, not which button. |
 
 Nothing else is sent. A message is dropped and logged when LVA is not connected. That never changes what is reported to Home Assistant.
