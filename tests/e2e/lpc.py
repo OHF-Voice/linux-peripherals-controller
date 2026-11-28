@@ -1,9 +1,11 @@
 """Runs LPC as a subprocess for the end-to-end tests and collects its log."""
 
 import re
+import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -34,12 +36,14 @@ def run_to_exit(args: Sequence[str], timeout: float = 30.0) -> subprocess.Comple
 
 class LpcProcess:
     """
-    One LPC instance. Its log is collected so tests can wait for and search log lines.
+    One LPC instance with simulated hardware, its ESPHome API on a free port of 127.0.0.1, no mDNS and its own state file in a
+    temporary folder. Its log is collected so tests can wait for and search log lines.
     :param lva_port: Port of the peripheral API of the (fake) LVA.
     :param extra_args: More command line arguments, they come after the defaults.
     """
 
     def __init__(self, lva_port: int, extra_args: Optional[Sequence[str]] = None) -> None:
+        self.state_dir = Path(tempfile.mkdtemp(prefix="lpc-e2e-"))
         self._command = [
             sys.executable,
             "-m",
@@ -51,6 +55,15 @@ class LpcProcess:
             "127.0.0.1",
             "--lva-port",
             str(lva_port),
+            "--simulate-hardware",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "0",
+            "--enable-zeroconf",
+            "0",
+            "--state-file",
+            str(self.state_dir / "state.json"),
             *(extra_args or []),
         ]
         self._lines: List[str] = []
@@ -73,6 +86,7 @@ class LpcProcess:
         except subprocess.TimeoutExpired:
             self._process.kill()
             self._process.wait()
+        shutil.rmtree(self.state_dir, ignore_errors=True)
 
     async def interrupt(self, timeout: float = 10.0) -> int:
         """
@@ -115,6 +129,17 @@ class LpcProcess:
         :param timeout: Seconds to wait before a TimeoutError is raised.
         """
         await self._wait_for(lambda: text in self.log_since(since), f"log line {text!r}", since, timeout)
+
+    async def esphome_port(self, timeout: float = 15.0) -> int:
+        """
+        Wait until the ESPHome API listens and return its port, as LPC logs it (``ESPHome API for Home Assistant on host:port``).
+        :param timeout: Seconds to wait before a TimeoutError is raised.
+        """
+        pattern = re.compile(r"ESPHome API for Home Assistant on [\d.]+:(\d+)")
+        await self._wait_for(lambda: pattern.search(self.full_log()) is not None, "the ESPHome API", 0, timeout)
+        match = pattern.search(self.full_log())
+        assert match is not None
+        return int(match.group(1))
 
     async def wait_for_display(self, function: Optional[str], since: int = 0, timeout: float = 10.0) -> None:
         """

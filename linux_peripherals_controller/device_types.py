@@ -1,12 +1,14 @@
-"""The device types LPC knows: how a device is driven and what it offers.
+"""How a device type is described: how a device is driven and what it offers.
 
 A device type describes the hardware of one kind of device (LED chip, number of LEDs, buttons and their pins, sensors) and which
-display functions it can show. It may also replace the predefined colors and patterns. It is data only, it opens no hardware.
+display functions it can show. It may also replace the predefined colors and patterns. It is data only, it opens no hardware. Every
+device type lives in its own file in ``devices/``, together with the code that runs its hardware.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import FrozenSet, Mapping, Optional, Tuple
 
 from .appearance import Color, PatternName
@@ -32,12 +34,45 @@ class ButtonSpec:
     pin: Optional[int] = None
 
 
+class SensorKind(StrEnum):
+    """What a sensor reports: a number, a text or on/off."""
+
+    NUMBER = "number"
+    TEXT = "text"
+    BINARY = "binary"
+
+
 @dataclass(frozen=True)
 class SensorSpec:
-    """A sensor of a device, read every ``interval`` seconds."""
+    """
+    A sensor of a device, read every ``interval`` seconds.
+    :param interval: Seconds between two readings. None reads it once at startup, after that only what the device reports itself.
+    :param unit: Unit of the value in Home Assistant, for example ``°C``.
+    :param device_class: Device class in Home Assistant, for example ``temperature``.
+    :param kind: A number, a text or on/off.
+    :param diagnostic: True for a value about the device itself (firmware, power), shown under Diagnostic in Home Assistant.
+    """
 
     name: str
-    interval: float = 30.0
+    interval: Optional[float] = 30.0
+    unit: str = ""
+    device_class: str = ""
+    kind: SensorKind = SensorKind.NUMBER
+    diagnostic: bool = False
+
+
+@dataclass(frozen=True)
+class ControlSpec:
+    """
+    A setting of the hardware that Home Assistant can change, a number from ``minimum`` to ``maximum`` in ``step``.
+    :param unit: Unit of the value in Home Assistant.
+    """
+
+    name: str
+    minimum: float
+    maximum: float
+    step: float = 1.0
+    unit: str = ""
 
 
 @dataclass(frozen=True)
@@ -49,6 +84,7 @@ class DeviceType:
     leds: Optional[LedSpec] = None
     buttons: Tuple[ButtonSpec, ...] = ()
     sensors: Tuple[SensorSpec, ...] = ()
+    controls: Tuple[ControlSpec, ...] = ()
     functions: FrozenSet[DisplayFunction] = frozenset(DisplayFunction)
     colors: Mapping[DisplayFunction, Color] = field(default_factory=dict)
     patterns: Mapping[DisplayFunction, PatternName] = field(default_factory=dict)
@@ -61,30 +97,3 @@ class UnknownDeviceType(ValueError):
         super().__init__(f"Unknown device type '{name}'. Known device types: {', '.join(known)}")
         self.name = name
         self.known = known
-
-
-DEVICE_TYPES: Mapping[str, DeviceType] = {
-    "respeaker_2mic_v1": DeviceType(
-        name="respeaker_2mic_v1",
-        description="ReSpeaker 2-Mic Pi HAT with WM8960 codec: 3 APA102 LEDs on SPI0 and one button on GPIO 17",
-        leds=LedSpec("apa102", 3, {"spi_bus": 0, "spi_device": 0, "spi_speed_hz": 8_000_000}),
-        buttons=(ButtonSpec("button", ButtonRole.ACTION, pin=17),),
-    ),
-}
-
-
-def get_device_type(name: str) -> DeviceType:
-    """
-    Look up a device type.
-    :param name: The name of the device type.
-    :raises UnknownDeviceType: If there is no such device type. The error names the known ones.
-    """
-    try:
-        return DEVICE_TYPES[name]
-    except KeyError:
-        raise UnknownDeviceType(name, known_device_types()) from None
-
-
-def known_device_types() -> Tuple[str, ...]:
-    """The names of all device types, sorted."""
-    return tuple(sorted(DEVICE_TYPES))

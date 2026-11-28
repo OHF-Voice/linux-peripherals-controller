@@ -1,5 +1,6 @@
 """Small helpers shared by the controller modules."""
 
+from importlib import metadata
 from pathlib import Path
 
 _version_cache: str | None = None
@@ -22,3 +23,14 @@ def get_version() -> str:
         _version_cache = "unknown"
 
     return _version_cache
+
+
+def get_esphome_version() -> str:
+    """
+    The version of the installed aioesphomeapi package, told to Home Assistant as the ESPHome version.
+    :return: The version, or 'unknown' if it cannot be read.
+    """
+    try:
+        return metadata.version("aioesphomeapi")
+    except metadata.PackageNotFoundError:
+        return "unknown"

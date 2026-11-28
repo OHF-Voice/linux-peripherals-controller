@@ -27,7 +27,10 @@ LPC always means **Linux Peripheral Controller**, this project. LVA means **Linu
 - `linux_peripherals_controller/__main__.py` - Main entry point with CLI argument parsing
 - `linux_peripherals_controller/util.py` - Small helpers (`get_version()`)
 
-The peripheral drivers are not implemented yet and will be added as separate modules.
+- `linux_peripherals_controller/devices/` - One file per device type: its hardware description and the code that runs it
+- `linux_peripherals_controller/drivers/` - Thin hardware drivers (APA102 over SPI, USB LED ring, GPIO, HID), real or simulated
+- `linux_peripherals_controller/esphome/` - ESPHome API server with the entities for Home Assistant, mDNS
+- `linux_peripherals_controller/device_runner.py` - Connects the device with LVA and Home Assistant
 
 ## Development Commands
 

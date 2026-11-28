@@ -11,7 +11,7 @@ import websockets
 from linux_peripherals_controller.controller import Controller
 from linux_peripherals_controller.display import DisplayFunction
 from linux_peripherals_controller.hardware_mute import HardwareMute, HardwareMuteType
-from linux_peripherals_controller.lva_protocol import LvaEvent, LvaRequest
+from linux_peripherals_controller.lva_protocol import LvaEvent, LvaMessage, LvaRequest
 
 
 class FakeClock:
@@ -366,3 +366,48 @@ class TestRequestsOfLva:
             ask(controller, name)
         assert requests == []
         assert f"{name} is not a request to switch the hardware mute" in caplog.text
+
+
+class TestStatusAndSending:
+    @pytest.mark.asyncio
+    async def test_status_is_reported_after_every_event_and_connection_change(self):
+        statuses = []
+        controller = Controller("127.0.0.1", 1, on_status_change=statuses.append, clock=FakeClock())
+        controller._handle_connection(True)  # pylint: disable=protected-access
+        feed(controller, ("volume_status", {"volume": 30}))
+        controller._handle_connection(False)  # pylint: disable=protected-access
+        assert [s.volume for s in statuses] == [None, 30, None]
+
+    @pytest.mark.asyncio
+    async def test_status_and_link_are_readable(self):
+        controller, _ = make_controller()
+        assert not controller.link_connected
+        controller._handle_connection(True)  # pylint: disable=protected-access
+        feed(controller, ("volume_status", {"volume": 30}))
+        assert controller.link_connected
+        assert controller.status.volume == 30
+
+    @pytest.mark.asyncio
+    async def test_send_messages_sends_in_order(self):
+        controller, _ = make_controller()
+        sent = []
+
+        async def send(name, data=None):
+            sent.append((name, data))
+            return True
+
+        controller._bridge.send_message = send  # pylint: disable=protected-access
+        controller.send_messages((LvaMessage("listening_start"), LvaMessage("button_pressed", {"press": "single"})))
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert sent == [("listening_start", None), ("button_pressed", {"press": "single"})]
+
+    @pytest.mark.asyncio
+    async def test_send_stops_at_the_first_message_that_could_not_be_sent(self):
+        controller, _ = make_controller()
+        bridge_send = AsyncMock(return_value=False)
+        controller._bridge.send_message = bridge_send  # pylint: disable=protected-access
+        controller.send_messages((LvaMessage("volume_up"), LvaMessage("button_pressed", {"press": "single"})))
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        bridge_send.assert_awaited_once_with("volume_up", None)
