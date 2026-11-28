@@ -28,3 +28,8 @@ version_githash.txt
 # Claude Code (local rules and notes)
 .claude/
 CLAUDE.local.md
+
+# State and encryption key of a local run, and the Docker data volume
+state.json
+encryption.key
+data/

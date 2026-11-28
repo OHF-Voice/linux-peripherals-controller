@@ -19,11 +19,20 @@ classifiers = [
 ]
 requires-python = ">=3.13.0"
 dependencies = [
+    "aioesphomeapi==46.30.1",
     "websockets==17.4",
+    "zeroconf==0.154.0",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
+# Drivers of the hardware, imported only when a device opens them. The Docker image installs them.
+hardware = [
+    "gpiod==2.6.0",
+    "hidapi==0.15.0",
+    "pyusb==1.3.1",
+    "spidev==3.8",
+]
 dev = [
     "black",
     "flake8",
@@ -33,6 +42,7 @@ dev = [
     "isort",
     "autopep8",
     "pytest-asyncio",
+    "types-protobuf",
 ]
 
 [project.scripts]

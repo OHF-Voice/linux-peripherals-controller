@@ -24,26 +24,35 @@ Only run `./script/setup --dev` if `.venv` is missing, because the script delete
 
 ## State of the project
 
-Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA (peripheral API version 2) and the choice of the display function. The peripheral drivers (to be ported from `examples/` of LVA), buttons, device types and device configuration, and the ESPHome server for Home Assistant are added later. The specification is `docs/behavior.md`.
+Done: CI, Docker build, docs, lint and test setup, the connection to LVA (peripheral API version 2), the choice of the display function, device types and device configuration, the drivers, a device file per device type, buttons, the LED patterns, the ESPHome server for Home Assistant with mDNS and encryption, and the state file. None of it was tried on the hardware. The specification is `docs/behavior.md`.
 
 ## Module map
 
 | File | Responsibility |
 |------|---------------|
-| `__main__.py` | argparse, logging, start of the controller (`asyncio.run(Controller(...).run())`) |
-| `controller.py` | `Controller`: holds the `LvaStatus`, lets the pure functions pick the display function, reports a change to `on_display_change`, ends short functions with a timer. A (re)connect or a loss starts from an empty status |
+| `__main__.py` | argparse, logging, encryption key, then `_serve()`: create the device (`devices.create_device`), open it (`DeviceRunner.open`, `DriverError` exits), start the ESPHome server and mDNS, run the controller and the sensors |
+| `device_runner.py` | `DeviceRunner`: the hub. Display function and LVA status to the LEDs (through `LedOutput`), button edges to presses (`ButtonInput`) to `device.decide_press()` to LVA (`Controller.send_messages`) and Home Assistant (`ButtonEventEntity.press`), light and child lock from Home Assistant (stored with `save`), hardware mute between device, LVA and Home Assistant, sensors. `entities()` creates the entities in a fixed order (light, buttons, child lock, hardware mute, sensors) |
+| `devices/` | One file per device type, named like it: `DEVICE_TYPE` and `class Device(BaseDevice)`. `__init__.py` is the registry (`DEVICE_FILES`, `DEVICE_TYPES`, `get_device_type()`, `known_device_types()`, `create_device()`). `base.py`: `BaseDevice` opens the LEDs of the type and a GPIO button per pin, renders the patterns, decides a press by role. A device file overrides `open`/`close`, `draw`/`is_animated`, `decide_press`, `detection_for`, `hardware_mute`/`switch_hardware_mute`, `read_sensor`, and reports its own buttons with `report_button()`. `jabra_speak_410.py` has pure `decode_report()` and `led_report()` |
+| `drivers/` | Thin hardware layers, hardware packages imported only when opened (extra `hardware` in `pyproject.toml`). `Drivers` (in `__init__.py`) opens them, or simulated ones (`simulated.py`) with `--simulate-hardware`. `apa102.py` (`apa102_frame()`, SPI), `usb_pixel_ring.py` (`pixel_ring_payload()`, pyusb), `gpio.py` (gpiod, edges via `loop.add_reader`, chip with a `pinctrl-` label), `hid.py` (hidapi, all interfaces, one reader thread each, reports handed to the loop). Every failure to open is a `DriverError` |
+| `esphome/` | `api_server.py` (frames and Noise encryption, taken from LVA), `entities.py` (`LightEntity`, `ButtonEventEntity`, `SwitchEntity`, `BinarySensorEntity`, `SensorEntity`; key = place in the list), `server.py` (`HomeAssistantServer`: device info, list, states, commands answered to every client), `discovery.py` (mDNS, `local_ip_address()`) |
+| `animation.py` | `DisplayState` (function, amount, light, start), `display_amount()`, `scene_for()`, `render()` (one color per LED for a time), `is_animated()` |
+| `led_output.py` | `LedOutput`: draws on change and every frame (`FRAME_INTERVAL_SECONDS`) while animated |
+| `button_input.py` | `ButtonInput`: state per button for `press_detection`, ticks with `call_later` at `next_deadline()` |
+| `light.py` | `LightState` (the light of Home Assistant, off and light blue by default), `apply_light_command()` |
+| `state_store.py` | `StoredState` (child lock, light), `load_state()` (defaults on any problem), `save_state()` (atomic) |
+| `controller.py` | `Controller`: holds the `LvaStatus`, lets the pure functions pick the display function, reports a change to `on_display_change` and every status to `on_status_change`, ends short functions with a timer, sends button commands (`send_messages`). A (re)connect or a loss starts from an empty status |
 | `lva_bridge.py` | `LvaBridge`: WebSocket client of `/v2` with reconnect, hands events and requests (commands of LVA) to the controller, `send_message()` drops messages while not connected. Thin I/O only |
 | `lva_protocol.py` | Wire format: `lva_url()`, `parse_message()` (an event or a request of LVA), `build_message()` (a command or an event for LVA), `COMMANDS`, `REPORTED_EVENTS` (version 2 only). An **event** reports something, a **command** asks for something, whatever the direction. `LvaMessage` is a message for LVA |
 | `lva_status.py` | `LvaStatus` (immutable, with the list of `LvaTimer`) and `apply_event()`: new status plus the short signal (state `pipeline_error`, `auto_stopped` in `timer_status`, changed volume, not the first volume) |
-| `button_roles.py` | `ButtonRole`, `decide_button_action()`: the commands for LVA (`LvaMessage`) and whether to report to Home Assistant, by role, press, `LvaStatus`, connection and child lock. `reason` is for the log |
+| `button_roles.py` | `ButtonRole`, `decide_button_action()`: the commands for LVA (`LvaMessage`) and whether to report to Home Assistant, by role, press, `LvaStatus`, connection and child lock. `reason` is for the log. `detection_for_role()`: the volume roles repeat |
 | `appearance.py` | `Color` (`from_hex()`), `PatternName`, `DEFAULT_COLORS` / `DEFAULT_PATTERNS`: one entry per `DisplayFunction` |
-| `device_types.py` | `DeviceType` (LEDs, buttons, sensors, offered functions, color and pattern overrides) as data, `DEVICE_TYPES`, `get_device_type()` (raises `UnknownDeviceType` with the known names). Opens no hardware |
+| `device_types.py` | `DeviceType` (LEDs, buttons, sensors, offered functions, color and pattern overrides) as data, `UnknownDeviceType`. The device types themselves are in `devices/`. Opens no hardware |
 | `device_config.py` | `load_device_config()` / `parse_device_config()`: the TOML file of one device (brightness, buttons, colors, patterns, sensors) as an immutable `DeviceConfig`. The whole file is checked, any unknown key or invalid value raises `DeviceConfigError` naming file and key |
 | `device_setup.py` | `resolve_device()`: merges defaults < device type < device configuration into a `ResolvedDevice`. Refuses names the device type does not have (`DeviceConfigError`) |
 | `press_detection.py` | Press types from the timing of a button: `press()`/`release()`/`tick()` take the state and the time and return the new `ButtonState` and the complete presses (`single`, `double`, `triple`, `long`, `repeat`). `next_deadline()` says when to call `tick()` |
 | `hardware_mute.py` | `HardwareMute(type, muted)` with `HardwareMuteType` (`none`, `changeable`, `read_only`), `messages_for_changes()` (the events to tell LVA: everything after a connect, then only changes), `decide_mute_request()` (carry out a `hardware_muted_on/off` request only for `changeable`) and `entity_for()` (switch, binary sensor or none for Home Assistant). The device is the authority. `Controller.set_hardware_mute()` is the entry for a driver, `on_hardware_mute_request` the callback to it |
 | `display.py` | `DisplayFunction`, `select_display_function()` (fixed priority order), `start_transient()` for the short functions |
-| `util.py` | `get_version()` (reads `version.txt`) |
+| `util.py` | `get_version()` (reads `version.txt`), `get_esphome_version()` (version of aioesphomeapi) |
 
 ## Change checklists
 
@@ -56,7 +65,7 @@ Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA 
 ## Code structure for new logic
 
 - Put logic that can run on its own (mapping, filtering, state decisions) into its own module under `linux_peripherals_controller/`, as plain functions that take the state they need as parameters and return the result.
-- Hardware access (GPIO, SPI, USB) and I/O stay in thin driver modules, so the logic stays unit-testable with mocks.
+- Hardware access (GPIO, SPI, USB) and I/O stay in thin driver modules in `drivers/`, so the logic stays unit-testable with mocks. What is special about one device goes into its device file in `devices/`, not into the shared code.
 - Add `tests/unit/test_<module>.py` for every new module.
 - Log decisions at debug level with the value and the threshold. `%`-style arguments, never f-strings.
 - Do not refactor unrelated code in the same change.
@@ -71,6 +80,8 @@ Done so far: CI, Docker build, docs, lint and test setup, the connection to LVA 
 ## Gotchas
 
 - `mypy` runs non-strict with `python_version = 3.13` (`mypy.ini`).
+- The hardware packages (`gpiod`, `hidapi`, `pyusb`, `spidev`) are the extra `hardware`: the Docker image installs them, `./script/setup --dev` does not. Unit tests replace them with fake modules in `sys.modules`. `lgpio`/`gpiozero` are not used, because `lgpio` does not build on x86 and `gpiod` works on the Raspberry Pi 3, 4 and 5 alike.
+- `--simulate-hardware` runs without the device. A real device type without its hardware exits at startup (`DriverError`).
 - The Docker image is **not** built locally by compose. `docker-compose.yml` pulls `ghcr.io/ohf-voice/linux-peripherals-controller:${LPC_IMAGE_TAG:-latest}` (dev file: `-pr` image, tag `nightly`).
 - `version.txt` and `version_githash.txt` are git-ignored and written by the Docker build workflows. Locally `get_version()` returns `unknown`.
 

@@ -1,8 +1,9 @@
 """The controller: connects LVA to what the device shows.
 
 It holds the status of LVA, lets the pure functions decide which display function is shown and tells the caller when that changes.
-It also reports the hardware mute of the device to LVA and passes on the requests of LVA to switch it. The device is the authority: LVA is told the state after every (re)connect and never sets it. The hardware (LEDs,
-buttons, the mute itself) is not part of it yet.
+It also reports the hardware mute of the device to LVA and passes on the requests of LVA to switch it. The device is the authority:
+LVA is told the state after every (re)connect and never sets it. It sends the commands of the buttons to LVA. The hardware itself
+is run by the device (``device_runner.py``).
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Callable, Optional
+from typing import Any, Callable, Coroutine, Optional
 
 from .display import DisplayFunction, TransientDisplay, select_display_function, start_transient
 from .hardware_mute import HardwareMute, decide_mute_request, messages_for_changes
@@ -28,6 +29,7 @@ class Controller:
     :param lva_port: Port of the peripheral API of LVA.
     :param on_display_change: Called with the new display function (None for the background) whenever it changes.
     :param on_hardware_mute_request: Called with True or False when LVA asks to mute or unmute the hardware, and the device can do that.
+    :param on_status_change: Called with the status of LVA after every event and every (re)connect or loss.
     :param clock: Returns the current time in seconds.
     """
 
@@ -37,11 +39,13 @@ class Controller:
         lva_port: int,
         on_display_change: Optional[Callable[[Optional[DisplayFunction]], None]] = None,
         on_hardware_mute_request: Optional[Callable[[bool], None]] = None,
+        on_status_change: Optional[Callable[[LvaStatus], None]] = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._bridge = LvaBridge(lva_url(lva_host, lva_port), self._handle_event, self._handle_request, self._handle_connection)
         self._on_display_change = on_display_change
         self._on_hardware_mute_request = on_hardware_mute_request
+        self._on_status_change = on_status_change
         self._clock = clock
         self._link_connected = False
         self._status = LvaStatus()
@@ -56,6 +60,24 @@ class Controller:
     def display(self) -> Optional[DisplayFunction]:
         """The display function that is shown now, None for the background."""
         return self._display
+
+    @property
+    def status(self) -> LvaStatus:
+        """The status of LVA, empty while LPC is not connected to it."""
+        return self._status
+
+    @property
+    def link_connected(self) -> bool:
+        """True while LPC is connected to LVA."""
+        return self._link_connected
+
+    def send_messages(self, messages: tuple[LvaMessage, ...]) -> None:
+        """
+        Send messages to LVA, in order, without waiting. Call it on the event loop.
+        :param messages: The commands (or events) for LVA. They are dropped and logged while LPC is not connected to LVA.
+        """
+        if messages:
+            self._start_sending(self._send_in_order(messages))
 
     def set_hardware_mute(self, hardware: HardwareMute) -> None:
         """
@@ -79,6 +101,7 @@ class Controller:
         self._transient = None
         self._told_lva = None
         self._reselect(link_connected=connected)
+        self._report_status()
         self._send_hardware_mute()
 
     def _handle_event(self, event: LvaEvent) -> None:
@@ -87,6 +110,7 @@ class Controller:
         if update.transient is not None:
             self._transient = start_transient(update.transient, self._clock())
         self._reselect(link_connected=True)
+        self._report_status()
 
     def _handle_request(self, request: LvaRequest) -> None:
         decision = decide_mute_request(request.name, self._hardware_mute)
@@ -101,15 +125,26 @@ class Controller:
         if not messages:
             return
         self._told_lva = self._hardware_mute
-        task = asyncio.get_running_loop().create_task(self._send_messages(messages))
+        self._start_sending(self._send_hardware_mute_messages(messages))
+
+    def _start_sending(self, sending: Coroutine[Any, Any, Any]) -> None:
+        task = asyncio.get_running_loop().create_task(sending)
         self._sending.add(task)
         task.add_done_callback(self._sending.discard)
 
-    async def _send_messages(self, messages: tuple[LvaMessage, ...]) -> None:
+    async def _send_hardware_mute_messages(self, messages: tuple[LvaMessage, ...]) -> None:
+        if not await self._send_in_order(messages):
+            self._told_lva = None
+
+    async def _send_in_order(self, messages: tuple[LvaMessage, ...]) -> bool:
         for message in messages:
             if not await self._bridge.send_message(message.name, message.data):
-                self._told_lva = None
-                return
+                return False
+        return True
+
+    def _report_status(self) -> None:
+        if self._on_status_change is not None:
+            self._on_status_change(self._status)
 
     def _reselect(self, link_connected: Optional[bool] = None) -> None:
         if link_connected is not None:

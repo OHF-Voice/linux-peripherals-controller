@@ -13,6 +13,7 @@ from typing import Optional, Tuple
 
 from .lva_protocol import PRESS_TYPES, LvaMessage
 from .lva_status import LvaStatus
+from .press_detection import REPEAT_AFTER_SECONDS, DetectionConfig
 
 _BUSY_STATES = ("listening", "speech_detected", "thinking", "tts", "announce")
 
@@ -62,6 +63,17 @@ def decide_button_action(role: ButtonRole, press: str, status: LvaStatus, link_c
     commands = ((function,) if function is not None else ()) + _button_pressed(press)
     reason = f"{press} press of {role}" + (f": {function.name}" if function is not None else " has no function")
     return ButtonAction(reason, commands, report_to_ha=report)
+
+
+def detection_for_role(role: ButtonRole) -> DetectionConfig:
+    """
+    How the presses of a button with this role are told apart.
+    :param role: The role of the button.
+    :return: The volume buttons repeat while they are held, the others do not.
+    """
+    if role in (ButtonRole.VOLUME_UP, ButtonRole.VOLUME_DOWN):
+        return DetectionConfig(repeat_after=REPEAT_AFTER_SECONDS)
+    return DetectionConfig()
 
 
 def _function_command(role: ButtonRole, press: str, status: LvaStatus) -> Optional[LvaMessage]:

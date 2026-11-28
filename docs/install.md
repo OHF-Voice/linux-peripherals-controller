@@ -19,7 +19,11 @@ docker compose logs -f
 
 The container uses `network_mode: host`, so `localhost` reaches LVA when both run on the same machine. If LVA runs on another machine, set `LVA_HOST` in `.env`.
 
-Hardware access (GPIO, SPI, I2C, PWM, USB) is added to `docker-compose.yml` together with the peripheral drivers.
+The container runs `privileged`, so it reaches the hardware of every device type: GPIO (`/dev/gpiochip*`), SPI (`/dev/spidev*`), USB (`/dev/bus/usb`) and HID (`/dev/hidraw*`). The child lock, the light and the encryption key are kept in `./data` next to `docker-compose.yml`.
+
+For the ReSpeaker HATs, SPI has to be enabled on the Raspberry Pi: add `dtparam=spi=on` to `/boot/firmware/config.txt` and reboot (the Seeed driver installer does this).
+
+Home Assistant discovers LPC over mDNS as an ESPHome device (port `6054`). Add it in the ESPHome integration. With `ENABLE_ZEROCONF="0"` add it by hand with the IP address of the machine and port `6054`.
 
 ## Development image
 

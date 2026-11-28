@@ -8,13 +8,13 @@ services:
     # Host network, so "localhost" reaches the peripheral API (port 6055) of LVA
     network_mode: "host"
     env_file: ${ENV_FILE:-.env}
-    # Hardware access (GPIO, SPI, I2C, PWM, USB) is added together with the peripheral drivers
-    #privileged: true
-    #devices:
-    #  - /dev/gpiomem:/dev/gpiomem
+    # Hardware access: GPIO (/dev/gpiochip*), SPI (/dev/spidev*), USB (/dev/bus/usb) and HID (/dev/hidraw*)
+    privileged: true
     volumes:
       # Device configuration (DEVICE_CONFIG=/config/device.toml)
       - ./config:/config:ro
+      # State (child lock, light) and the encryption key
+      - ./data:/data
       # Time and zone
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro

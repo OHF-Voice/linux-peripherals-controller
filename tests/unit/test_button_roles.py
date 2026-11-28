@@ -2,9 +2,10 @@
 
 import pytest
 
-from linux_peripherals_controller.button_roles import ButtonAction, ButtonRole, LvaMessage, decide_button_action
+from linux_peripherals_controller.button_roles import ButtonAction, ButtonRole, LvaMessage, decide_button_action, detection_for_role
 from linux_peripherals_controller.lva_protocol import COMMANDS
 from linux_peripherals_controller.lva_status import LvaStatus
+from linux_peripherals_controller.press_detection import REPEAT_AFTER_SECONDS
 
 IDLE = LvaStatus(lva_status="connected", state="idle", muted=False, timer_status="idle")
 PRESSES = ("single", "double", "triple", "long", "repeat")
@@ -138,3 +139,13 @@ class TestReason:
 
     def test_reason_for_a_press_without_function(self):
         assert decide(ButtonRole.ACTION, "long").reason == "long press of action has no function"
+
+
+class TestDetectionForRole:
+    @pytest.mark.parametrize("role", [ButtonRole.VOLUME_UP, ButtonRole.VOLUME_DOWN])
+    def test_volume_buttons_repeat_after_half_a_second(self, role):
+        assert detection_for_role(role).repeat_after == REPEAT_AFTER_SECONDS == 0.5
+
+    @pytest.mark.parametrize("role", [ButtonRole.ACTION, ButtonRole.MUTE, ButtonRole.USER])
+    def test_other_buttons_do_not_repeat(self, role):
+        assert detection_for_role(role).repeat_after is None

@@ -18,3 +18,15 @@ def test_get_version_without_file_is_unknown(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(util, "__file__", str(tmp_path / "linux_peripherals_controller" / "util.py"))
 
     assert util.get_version() == "unknown"
+
+
+def test_get_esphome_version_is_the_version_of_aioesphomeapi():
+    assert util.get_esphome_version() == "46.30.1"
+
+
+def test_get_esphome_version_without_the_package_is_unknown(monkeypatch):
+    def missing(name):
+        raise util.metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(util.metadata, "version", missing)
+    assert util.get_esphome_version() == "unknown"
