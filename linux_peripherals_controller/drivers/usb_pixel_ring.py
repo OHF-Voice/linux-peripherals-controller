@@ -1,4 +1,4 @@
-"""The 12 LEDs of the ReSpeaker USB Mic Array v2.0, set over USB.
+"""The 12 LEDs of the ReSpeaker USB Mic Array v2.0 (XMOS XVF3000), set over USB.
 
 The protocol is the one of Seeed's ``pixel_ring`` (``usb_pixel_ring_v2.py``): vendor control transfers to the device with
 request 0, the command as value and index 0x1C. Command 6 sets every LED to its own color (red, green, blue, 0 per LED), command

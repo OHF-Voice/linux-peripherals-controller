@@ -34,7 +34,7 @@ Every device type is one file in `linux_peripherals_controller/devices/`, named 
 | `respeaker_2mic_v1` | ReSpeaker 2-Mic Pi HAT v1 (WM8960 codec) | 3 APA102 on SPI0 (`/dev/spidev0.0`) | `button` on GPIO 17 (`action`) |
 | `respeaker_2mic_v2` | ReSpeaker 2-Mic Pi HAT v2.0 (TLV320AIC3x codec) | 3 APA102 on SPI0 (`/dev/spidev0.0`) | `button` on GPIO 17 (`action`) |
 | `respeaker_4mic` | ReSpeaker 4-Mic Array HAT (AC108 codec) | 12 APA102 on SPI0 (`/dev/spidev0.1`), powered by GPIO 5 | none |
-| `respeaker_usb_mic_array` | ReSpeaker USB Mic Array v2.0 (USB `2886:0018`) | 12, set over USB | none |
+| `respeaker_xvf3000` | ReSpeaker USB Mic Array v2.0 with XMOS XVF3000 (USB `2886:0018`) | 12, set over USB | none |
 | `jabra_speak_410` | Jabra Speak 410 (USB, vendor `0b0e`) | fixed states over HID: green, red, flashing, partly flashing | `call` (`action`), `mute` (`mute`), `volume_up`, `volume_down` |
 | `satellite1` | Satellite1 HAT (FutureProofHomes), through `satellite1d` | 24, set through the daemon | `action` (`action`), `volume_up`, `volume_down` |
 
