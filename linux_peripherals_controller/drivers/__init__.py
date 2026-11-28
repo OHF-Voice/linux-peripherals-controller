@@ -31,7 +31,8 @@ class Drivers:
     def led_strip(self, spec: LedSpec) -> LedStrip:
         """
         Open the LEDs of a device type.
-        :param spec: The LEDs. ``driver`` is ``apa102`` (options ``spi_bus``, ``spi_device``, ``spi_speed_hz``) or ``usb_pixel_ring``.
+        :param spec: The LEDs. ``driver`` is ``apa102`` (options ``spi_bus``, ``spi_device``, ``spi_speed_hz``), ``ws2812`` (options ``spi_bus``,
+            ``spi_device``) or ``usb_pixel_ring``.
         :raises DriverError: If the LEDs cannot be opened or the driver is not known.
         """
         if self.simulated:
@@ -40,6 +41,10 @@ class Drivers:
             from .apa102 import Apa102Strip
 
             return Apa102Strip(spec.count, **spec.options)
+        if spec.driver == "ws2812":
+            from .ws2812 import Ws2812Strip
+
+            return Ws2812Strip(spec.count, **spec.options)
         if spec.driver == "usb_pixel_ring":
             from .usb_pixel_ring import UsbPixelRing
 

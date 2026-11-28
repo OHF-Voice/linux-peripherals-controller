@@ -32,7 +32,7 @@ Show the encryption key with `docker compose exec linux-peripherals-controller c
 
 For the Satellite1 HAT, install the [Satellite1-RPi-SDK](https://github.com/FutureProofHomes/Satellite1-RPi-SDK) first and uncomment the `/run/satellite1` volume in `docker-compose.yml`, see [Satellite1 HAT](configuration.md#satellite1-hat).
 
-For the ReSpeaker HATs, SPI has to be enabled on the Raspberry Pi: add `dtparam=spi=on` to `/boot/firmware/config.txt` and reboot (the Seeed driver installer does this).
+For the ReSpeaker HATs and the ReSpeaker Lite, SPI has to be enabled on the Raspberry Pi: add `dtparam=spi=on` to `/boot/firmware/config.txt` and reboot (the Seeed driver installer does this).
 
 Home Assistant discovers LPC over mDNS as an ESPHome device (port `6054`). Add it in the ESPHome integration. With `ENABLE_ZEROCONF="0"` add it by hand with the IP address of the machine and port `6054`.
 

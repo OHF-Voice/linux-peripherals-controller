@@ -15,6 +15,7 @@ from linux_peripherals_controller.drivers import DriverError, Drivers
 from linux_peripherals_controller.drivers.apa102 import Apa102Strip, apa102_frame
 from linux_peripherals_controller.drivers.simulated import SimulatedHardware, SimulatedLedStrip
 from linux_peripherals_controller.drivers.usb_pixel_ring import PRODUCT_ID, VENDOR_ID, UsbPixelRing, pixel_ring_payload
+from linux_peripherals_controller.drivers.ws2812 import SPI_SPEED_HZ, Ws2812Strip, ws2812_payload
 
 RED = Color(255, 0, 0)
 BLUE = Color(0, 0, 255)
@@ -69,6 +70,68 @@ class TestApa102Strip:
         monkeypatch.setitem(sys.modules, "spidev", None)
         with pytest.raises(DriverError, match="spidev is not installed"):
             Apa102Strip(3)
+
+
+class TestWs2812Payload:
+    def test_each_bit_is_three_spi_bits_in_green_red_blue_order(self):
+        data = ws2812_payload([Color(0x80, 0xFF, 0x00)], 1)[100:-100]
+        # green 0xFF: eight 110, red 0x80: one 110 then seven 100, blue 0x00: eight 100
+        assert data == bytes([0xDB, 0x6D, 0xB6]) + bytes([0xD2, 0x49, 0x24]) + bytes([0x92, 0x49, 0x24])
+
+    def test_reset_phase_before_and_after_the_data(self):
+        payload = ws2812_payload([RED], 1)
+        assert payload[:100] == bytes(100)
+        assert payload[-100:] == bytes(100)
+        assert len(payload) == 100 + 9 + 100
+
+    def test_missing_leds_are_dark_and_extra_ones_left_out(self):
+        assert ws2812_payload([], 2)[100:-100] == bytes([0x92, 0x49, 0x24]) * 6
+        assert len(ws2812_payload([RED, RED, RED], 1)) == 100 + 9 + 100
+
+
+class TestWs2812Strip:
+    @pytest.fixture
+    def spidev(self, monkeypatch):
+        spi_dev = MagicMock()
+        module = types.SimpleNamespace(SpiDev=spi_dev)
+        monkeypatch.setitem(sys.modules, "spidev", module)
+        return spi_dev.return_value
+
+    def test_opens_the_spi_device_at_the_ws2812_speed_and_writes(self, spidev, caplog):
+        caplog.set_level(logging.INFO)
+        strip = Ws2812Strip(1, spi_bus=0, spi_device=1)
+        spidev.open.assert_called_once_with(0, 1)
+        assert spidev.max_speed_hz == SPI_SPEED_HZ == 2_400_000
+        assert spidev.mode == 0
+        strip.write([RED])
+        spidev.xfer2.assert_called_once_with(list(ws2812_payload([RED], 1)))
+        assert strip.count == 1
+        assert "WS2812 LEDs opened: 1 LEDs on /dev/spidev0.1 at 2400000 Hz" in caplog.text
+
+    def test_close_turns_off_and_closes(self, spidev):
+        Ws2812Strip(1).close()
+        spidev.xfer2.assert_called_once_with(list(ws2812_payload([], 1)))
+        spidev.close.assert_called_once()
+
+    def test_device_that_cannot_be_opened_is_a_driver_error(self, spidev):
+        spidev.open.side_effect = FileNotFoundError("no such file")
+        with pytest.raises(DriverError, match="WS2812 LEDs on /dev/spidev0.0 cannot be opened"):
+            Ws2812Strip(1)
+
+    def test_write_error_is_logged_not_raised(self, spidev, caplog):
+        spidev.xfer2.side_effect = OSError("gone")
+        Ws2812Strip(1).write([RED])
+        assert "Cannot write to the WS2812 LEDs on /dev/spidev0.0: gone" in caplog.text
+
+    def test_missing_package_is_a_driver_error(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "spidev", None)
+        with pytest.raises(DriverError, match="spidev is not installed"):
+            Ws2812Strip(1)
+
+    def test_drivers_open_it_with_the_options_of_the_device_type(self, spidev):
+        strip = Drivers().led_strip(LedSpec("ws2812", 1, {"spi_bus": 0, "spi_device": 0}))
+        assert isinstance(strip, Ws2812Strip)
+        spidev.open.assert_called_once_with(0, 0)
 
 
 class TestUsbPixelRing:

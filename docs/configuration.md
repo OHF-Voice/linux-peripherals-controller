@@ -34,6 +34,7 @@ Every device type is one file in `linux_peripherals_controller/devices/`, named 
 | `respeaker_2mic_v1` | ReSpeaker 2-Mic Pi HAT v1 (WM8960 codec) | 3 APA102 on SPI0 (`/dev/spidev0.0`) | `button` on GPIO 17 (`action`) |
 | `respeaker_2mic_v2` | ReSpeaker 2-Mic Pi HAT v2.0 (TLV320AIC3x codec) | 3 APA102 on SPI0 (`/dev/spidev0.0`) | `button` on GPIO 17 (`action`) |
 | `respeaker_4mic` | ReSpeaker 4-Mic Array HAT (AC108 codec) | 12 APA102 on SPI0 (`/dev/spidev0.1`), powered by GPIO 5 | none |
+| `respeaker_lite` | ReSpeaker Lite with XMOS XU316, on USB, LED and button wired to the Raspberry Pi (see [below](#respeaker-lite)) | 1 WS2812 on SPI0 MOSI (GPIO 10, `/dev/spidev0.0`) | `user` on GPIO 17 (`action`) |
 | `respeaker_xvf3000` | ReSpeaker USB Mic Array v2.0 with XMOS XVF3000 (USB `2886:0018`) | 12, set over USB | none |
 | `jabra_speak_410` | Jabra Speak 410 (USB, vendor `0b0e`) | fixed states over HID: green, red, flashing, partly flashing | `call` (`action`), `mute` (`mute`), `volume_up`, `volume_down` |
 | `satellite1` | Satellite1 HAT (FutureProofHomes), through `satellite1d` | 24, set through the daemon | `action` (`action`), `volume_up`, `volume_down` |
@@ -41,6 +42,22 @@ Every device type is one file in `linux_peripherals_controller/devices/`, named 
 The Jabra Speak 410 has no colored LEDs, so `[colors]`, `[patterns]` and `brightness` do not change it, and there is no `LED` light in Home Assistant. It shows: listening green, wake word, thinking and a ringing timer flashing, a reply or an announcement partly flashing, muted red, an error and a lost connection blinking red, everything else off.
 
 A button without a GPIO pin of its own (the Jabra, the Satellite1) is read by its device file, so `pin` in the device configuration does not apply to it.
+
+### ReSpeaker Lite
+
+The ReSpeaker Lite runs with its USB firmware (v2.0.6 or newer) and is plugged into the Raspberry Pi by USB, as a sound card. Over USB the Raspberry Pi reaches neither its RGB LED nor its user button: the LED is driven by the XIAO ESP32S3 that can sit on the board (the USB firmware lets go of it after boot), and the user button goes to the XU316, which does nothing with it. LPC uses both once they are wired to the GPIO header of the Raspberry Pi:
+
+| ReSpeaker Lite | Raspberry Pi | What it is |
+|----------------|--------------|------------|
+| Pin `D0` of the XIAO header (GPIO1 of the XIAO) | GPIO 10, header pin 19 (SPI0 MOSI) | Data line of the WS2812 RGB LED |
+| `USR` pad of the user button | GPIO 17, header pin 11 | User button, pulled up by LPC, low when pressed |
+| `GND` of the XIAO header | GND, for example header pin 6 | Common ground |
+
+- What has to be soldered: Seeed shows the LED line and the pins of the XIAO header in the [RGB LED guide](https://wiki.seeedstudio.com/respeaker_rgb_test/), the `USR` pad of the user button and how it is bridged to a pin of the XIAO header in the [button guide](https://wiki.seeedstudio.com/respeaker_button/), and the board, its header and its pads in the [ReSpeaker Lite overview](https://wiki.seeedstudio.com/xiao_respeaker/) and the [pinout of the ReSpeaker_Lite repository](https://github.com/respeaker/ReSpeaker_Lite#pin-out). Wire to the Raspberry Pi instead of a XIAO pin. No XIAO ESP32S3 may be plugged in, or two drivers share the LED line.
+- SPI has to be enabled on the Raspberry Pi (`dtparam=spi=on` in `/boot/firmware/config.txt`, see [install.md](install.md)). LPC only uses MOSI, the clock and chip select lines stay unconnected.
+- Another pin for the button: `pin` under `[buttons.user]` in the [device configuration](#device-configuration).
+- The mute button stays with the XU316: it mutes the microphones and lights the red mute LED. Its state cannot be read over USB, so LPC has no hardware mute for this device.
+- Not tried on the hardware yet: whether the 3.3 V data line of the Raspberry Pi is enough for the WS2812, whether the XU316 leaves the LED line free after boot as its changelog says, and whether the SPI clock stays at 2.4 MHz on the Raspberry Pi 3 and Zero 2 W (their SPI clock follows the core clock, a fixed `core_freq=250` in `config.txt` may be needed).
 
 ### Satellite1 HAT
 

@@ -20,15 +20,12 @@ It connects to the [peripheral WebSocket API](https://github.com/OHF-Voice/linux
 | `respeaker_2mic_v1` | ReSpeaker 2-Mic Pi HAT v1 (3 LEDs, 1 button) |
 | `respeaker_2mic_v2` | ReSpeaker 2-Mic Pi HAT v2.0 (3 LEDs, 1 button) |
 | `respeaker_4mic` | ReSpeaker 4-Mic Array HAT (12 LEDs) |
+| `respeaker_lite` | ReSpeaker Lite on USB, LED and button wired to the GPIO header (1 LED, 1 button) |
 | `respeaker_xvf3000` | ReSpeaker USB Mic Array v2.0 with XMOS XVF3000 (12 LEDs) |
 | `jabra_speak_410` | Jabra Speak 410 (4 buttons, fixed LED states) |
 | `satellite1` | Satellite1 HAT through the daemon of its SDK (24 LEDs, 3 buttons, temperature, humidity and light sensors) |
 
 Details in [Configuration](docs/configuration.md#device-types).
-
-## Planned peripherals
-
-- ReSpeaker lite (USB)
 
 ## Installation
 

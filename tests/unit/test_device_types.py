@@ -73,6 +73,11 @@ class TestHardware:
         assert (device_type.leds.driver, device_type.leds.count, device_type.leds.options["spi_device"]) == ("apa102", 12, 1)
         assert device_type.buttons == ()
 
+    def test_respeaker_lite(self):
+        device_type = get_device_type("respeaker_lite")
+        assert (device_type.leds.driver, device_type.leds.count, dict(device_type.leds.options)) == ("ws2812", 1, {"spi_bus": 0, "spi_device": 0})
+        assert [(b.name, b.role, b.pin) for b in device_type.buttons] == [("user", ButtonRole.ACTION, 17)]
+
     def test_respeaker_xvf3000(self):
         device_type = get_device_type("respeaker_xvf3000")
         assert (device_type.leds.driver, device_type.leds.count) == ("usb_pixel_ring", 12)
