@@ -12,7 +12,7 @@ from typing import Mapping, Optional, Tuple
 from .appearance import DEFAULT_COLORS, DEFAULT_PATTERNS, Color, PatternName
 from .button_roles import ButtonRole
 from .device_config import DeviceConfig, DeviceConfigError
-from .device_types import ButtonSpec, DeviceType
+from .device_types import ButtonSpec, DeviceType, SensorKind
 from .display import DisplayFunction
 
 DEFAULT_BRIGHTNESS = 1.0
@@ -29,10 +29,14 @@ class ResolvedButton:
 
 @dataclass(frozen=True)
 class ResolvedSensor:
-    """A sensor as it is used."""
+    """A sensor as it is used. ``interval`` None reads it once, then only what the device reports."""
 
     name: str
-    interval: float
+    interval: Optional[float]
+    unit: str = ""
+    device_class: str = ""
+    kind: SensorKind = SensorKind.NUMBER
+    diagnostic: bool = False
 
 
 @dataclass(frozen=True)
@@ -67,7 +71,7 @@ def resolve_device(device_type: DeviceType, config: DeviceConfig, source: str = 
         device_type=device_type,
         brightness=DEFAULT_BRIGHTNESS if config.brightness is None else config.brightness,
         buttons=tuple(_resolve_button(spec, config) for spec in device_type.buttons),
-        sensors=tuple(ResolvedSensor(s.name, _sensor_interval(s.name, s.interval, config)) for s in device_type.sensors),
+        sensors=tuple(ResolvedSensor(s.name, _sensor_interval(s.name, s.interval, config), s.unit, s.device_class, s.kind, s.diagnostic) for s in device_type.sensors),
         colors=colors,
         patterns=patterns,
     )
@@ -80,7 +84,7 @@ def _resolve_button(spec: ButtonSpec, config: DeviceConfig) -> ResolvedButton:
     return ResolvedButton(spec.name, spec.role if own.role is None else own.role, spec.pin if own.pin is None else own.pin)
 
 
-def _sensor_interval(name: str, default: float, config: DeviceConfig) -> float:
+def _sensor_interval(name: str, default: Optional[float], config: DeviceConfig) -> Optional[float]:
     own = config.sensors.get(name)
     return default if own is None or own.interval is None else own.interval
 

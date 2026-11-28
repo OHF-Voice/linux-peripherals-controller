@@ -2,7 +2,7 @@
 
 This page describes what Linux Peripheral Controller (LPC) does, from the user's point of view. It is the source of truth for the behavior of LPC: code changes follow it, and a change of the behavior updates it.
 
-> **Status:** implemented as described here. The drivers and device types were written from the examples of LVA and the vendor sources and were not tried on the hardware yet. None of the device types has a hardware mute or sensors yet, so these parts only work for a device file that adds them.
+> **Status:** implemented as described here. The drivers and device types were written from the examples of LVA and the vendor sources and were not tried on the hardware yet. Only the Satellite1 HAT has a hardware mute (its microphone mute switch), sensors and controls.
 
 ---
 
@@ -16,6 +16,7 @@ This page describes what Linux Peripheral Controller (LPC) does, from the user's
 - [Child lock](#child-lock)
 - [Hardware mute](#hardware-mute)
 - [Sensors](#sensors)
+- [Controls](#controls)
 - [Home Assistant](#home-assistant)
 - [Bridge to LVA](#bridge-to-lva)
 - [Startup and errors](#startup-and-errors)
@@ -58,7 +59,7 @@ built-in defaults  <  device type  <  device configuration
 
 Everything is optional in the device configuration. An empty or missing file means the device type as shipped.
 
-Device types: ReSpeaker 2mic HAT v1 and v2.0, ReSpeaker 4mic HAT, ReSpeaker USB Mic Array v2.0, Jabra Speak 410 (see [configuration.md](configuration.md#device-types)). Every device type is one file in `linux_peripherals_controller/devices/`, named like the device type. The file describes the hardware and runs it. What most devices need is done the same way for all of them (LEDs that show the patterns, GPIO buttons whose role decides what a press does), and a device file can do something of its own instead: other LEDs (the Jabra shows fixed LED states instead of colors), other buttons (the Jabra reads its buttons over USB), or another function for a press. Such a device file keeps the rules of this page: every press is reported to Home Assistant, and nothing goes to LVA while the child lock is on. More device types are added as new files, without a change to the rest of LPC.
+Device types: ReSpeaker 2mic HAT v1 and v2.0, ReSpeaker 4mic HAT, ReSpeaker USB Mic Array v2.0, Jabra Speak 410, Satellite1 HAT (see [configuration.md](configuration.md#device-types)). Every device type is one file in `linux_peripherals_controller/devices/`, named like the device type. The file describes the hardware and runs it. What most devices need is done the same way for all of them (LEDs that show the patterns, GPIO buttons whose role decides what a press does), and a device file can do something of its own instead: other LEDs (the Jabra shows fixed LED states instead of colors), other buttons (the Jabra reads its buttons over USB), or another function for a press. Such a device file keeps the rules of this page: every press is reported to Home Assistant, and nothing goes to LVA while the child lock is on. More device types are added as new files, without a change to the rest of LPC.
 
 **Without the hardware.** `--simulate-hardware` opens no hardware: the LEDs are only logged at debug level and no button can be pressed. Everything else (LVA, Home Assistant) works as with the device.
 
@@ -143,7 +144,7 @@ LPC detects the press type of every button itself, with the timing of the Home A
 | Triple | Press, gap below 250 ms, press, gap below 250 ms, press, then more than 250 ms without another. |
 | Long | The button is held for at least 1 s. It is reported as soon as the second is over, not on release. A press that waits for its gap is dropped when the next press turns into a long one. |
 
-A GPIO button ignores further changes for 30 ms after a change (debounce). The call button of the Jabra Speak 410 only reports that it was pressed, not how long, so it only knows single, double and triple presses. Right after its mute button the Jabra reports a call button press that nobody made: such a press within 1 s after the mute button is ignored, unless the Jabra reports it as the end of a call.
+A GPIO button ignores further changes for 30 ms after a change (debounce). The call button of the Jabra Speak 410 and the buttons of the Satellite1 HAT only report that they were pressed, not how long, so they only know single, double and triple presses (a held volume button of the Satellite1 does not repeat). Right after its mute button the Jabra reports a call button press that nobody made: such a press within 1 s after the mute button is ignored, unless the Jabra reports it as the end of a call.
 
 ### Roles
 
@@ -202,6 +203,7 @@ Some hardware can mute its microphone itself, with a switch or a button, and som
 - **LPC offers the entity itself,** over ESPHome, as in the table. LVA creates no entity for it.
 - **LPC tells LVA** with the events `hardware_mute_type` (`none`, `changeable` or `read_only`) and `hardware_mute_status` (`muted` or `unmuted`, not for the type `none`). Both are sent after every (re)connect to LVA, and afterwards whenever a value changes. LVA uses them only for its own processing.
 - **LVA may ask to switch it.** LVA can send the commands `hardware_muted_on` or `hardware_muted_off`. LPC carries it out only if the type is `changeable`, otherwise it ignores the request and logs why. LPC then reports the new state itself, once the hardware has changed. The same rule applies to the switch in Home Assistant.
+- **Satellite1 HAT.** Its microphone mute switch latches and mutes the microphones in the hardware. It is a hardware mute of the type `read_only`: LPC reads it at startup (if it cannot be read, it counts as not muted), and the daemon of the HAT reports every change.
 - **It is separate from the Mute of the assistant.** Neither follows the other, and the LEDs do not change. LVA will be able to sync its mute with the hardware mute with a parameter that comes later.
 - **Without a connection to LVA** nothing is told and no request can arrive. The entity in Home Assistant works as before.
 
@@ -209,7 +211,15 @@ Some hardware can mute its microphone itself, with a switch or a button, and som
 
 ## Sensors
 
-A device type can have sensors (for example temperature or light). Each one is a sensor entity in Home Assistant, read at a fixed interval (default set by the device type, `interval` in the device configuration changes it). A sensor that cannot be read is `unavailable` in Home Assistant and a warning is logged once. Reading a sensor never depends on LVA.
+A device type can have sensors: a number (for example temperature or light), a text (for example a firmware version) or on/off (for example whether a plug is in a jack). Each one is an entity in Home Assistant. A sensor is read at a fixed interval (default set by the device type, `interval` in the device configuration changes it). A sensor without an interval is read once at startup and after that changes only when the device reports a new value itself (the line-out jack of the Satellite1 HAT). Values about the device itself (firmware, power) are shown under Diagnostic.
+
+A sensor that cannot be read is `unavailable` (unknown) in Home Assistant and a warning is logged once, until it can be read again. Reading a sensor never depends on LVA.
+
+---
+
+## Controls
+
+A device type can have settings of its hardware that Home Assistant changes, for example the level of the speaker amplifier of the Satellite1 HAT (0 to 20). Each one is a number entity (a slider) in Home Assistant. LPC reads the value at startup (unknown in Home Assistant, with a warning, if it cannot be read). A value from Home Assistant is clamped to the range, set on the hardware, and Home Assistant then shows the value that the hardware reports. LPC does not store it: the hardware keeps it.
 
 ---
 
@@ -223,7 +233,8 @@ LPC is discovered by Home Assistant over mDNS as an ESPHome device, like LVA (`-
 | `<Button name>` | Event | One per button, whatever its role. Event types `single_press`, `double_press`, `triple_press`, `long_press`. |
 | `Child Lock` | Switch | See [Child lock](#child-lock). |
 | `Hardware Mute` | Switch or binary sensor | Only for a device with a hardware mute: a switch if it is `changeable`, a binary sensor (status only) if it is `read_only`. See [Hardware mute](#hardware-mute). |
-| `<Sensor name>` | Sensor | One per sensor of the device type. |
+| `<Sensor name>` | Sensor, text sensor or binary sensor | One per sensor of the device type, see [Sensors](#sensors). |
+| `<Control name>` | Number | One per control of the device type, see [Controls](#controls). |
 
 Entities are never reordered or removed once they exist (as in LVA), so Home Assistant keeps its history. The light state is stored and restored after a restart. Several Home Assistant clients can be connected at once, every change is sent to all of them. A button event is only sent after the first press, Home Assistant shows no event before.
 

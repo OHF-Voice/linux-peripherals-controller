@@ -22,6 +22,7 @@ DEVICE_FILES = (
     "respeaker_2mic_v2",
     "respeaker_4mic",
     "respeaker_usb_mic_array",
+    "satellite1",
 )
 
 

@@ -15,6 +15,8 @@ services:
       - ./config:/config:ro
       # State (child lock, light) and the encryption key
       - ./data:/data
+      # Socket of satellite1d, the daemon of the Satellite1 HAT (only for DEVICE_TYPE="satellite1")
+      #- /run/satellite1:/run/satellite1
       # Time and zone
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro

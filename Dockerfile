@@ -1,5 +1,5 @@
 ### Build stage: install the Python dependencies into a virtual environment
-# On linux/arm/v7 the dependencies without wheels are built from source (hidapi needs libusb and libudev for that).
+# On linux/arm/v7 the dependencies without wheels are built from source (hidapi needs pkg-config, libusb and libudev, cffi needs libffi, as in LVA).
 FROM python:3.13-slim-trixie AS build
 
 ARG TARGETARCH
@@ -7,7 +7,7 @@ ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
-    apt-get install --yes --no-install-recommends build-essential libusb-1.0-0-dev libudev-dev && \
+    apt-get install --yes --no-install-recommends build-essential pkg-config libffi-dev libusb-1.0-0-dev libudev-dev && \
     apt-get clean
 
 WORKDIR /app

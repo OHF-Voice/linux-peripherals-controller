@@ -95,7 +95,7 @@ async def _serve(args: argparse.Namespace, resolved: ResolvedDevice, noise_psk: 
             await discovery.start()
         else:
             _LOGGER.info("mDNS disabled: add LPC in Home Assistant by hand with %s:%s", ip_address, port)
-        await asyncio.gather(controller.run(), runner.read_sensors())
+        await asyncio.gather(controller.run(), runner.read_values())
     finally:
         if discovery is not None:
             await discovery.stop()

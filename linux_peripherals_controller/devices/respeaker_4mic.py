@@ -8,7 +8,7 @@ no button of its own.
 from __future__ import annotations
 
 from ..device_types import DeviceType, LedSpec
-from .base import BaseDevice, ButtonCallback, HardwareMuteCallback
+from .base import BaseDevice, DeviceCallbacks
 
 LED_POWER_PIN = 5
 
@@ -22,11 +22,10 @@ DEVICE_TYPE = DeviceType(
 class Device(BaseDevice):
     """The ReSpeaker 4-Mic Array HAT: powers its LEDs before they are opened."""
 
-    def open(self, on_button: ButtonCallback, on_hardware_mute: HardwareMuteCallback) -> None:
+    def open(self, callbacks: DeviceCallbacks) -> None:
         """
         Power the LEDs, then open them.
-        :param on_button: Called with the name of a button and whether it went down.
-        :param on_hardware_mute: Called whenever the hardware mute changes.
+        :param callbacks: What the device reports while it runs.
         """
         self.keep(self.drivers.gpio_output(LED_POWER_PIN, True))
-        super().open(on_button, on_hardware_mute)
+        super().open(callbacks)

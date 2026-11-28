@@ -21,6 +21,8 @@ The container uses `network_mode: host`, so `localhost` reaches LVA when both ru
 
 The container runs `privileged`, so it reaches the hardware of every device type: GPIO (`/dev/gpiochip*`), SPI (`/dev/spidev*`), USB (`/dev/bus/usb`) and HID (`/dev/hidraw*`). The child lock, the light and the encryption key are kept in `./data` next to `docker-compose.yml`.
 
+For the Satellite1 HAT, install the [Satellite1-RPi-SDK](https://github.com/FutureProofHomes/Satellite1-RPi-SDK) first and uncomment the `/run/satellite1` volume in `docker-compose.yml`, see [Satellite1 HAT](configuration.md#satellite1-hat).
+
 For the ReSpeaker HATs, SPI has to be enabled on the Raspberry Pi: add `dtparam=spi=on` to `/boot/firmware/config.txt` and reboot (the Seeed driver installer does this).
 
 Home Assistant discovers LPC over mDNS as an ESPHome device (port `6054`). Add it in the ESPHome integration. With `ENABLE_ZEROCONF="0"` add it by hand with the IP address of the machine and port `6054`.

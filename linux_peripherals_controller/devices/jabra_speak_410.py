@@ -25,7 +25,7 @@ from ..device_types import ButtonSpec, DeviceType
 from ..display import DisplayFunction
 from ..drivers import DriverError, Drivers, HidWriter
 from ..light import LightState
-from .base import BaseDevice, ButtonCallback, HardwareMuteCallback
+from .base import BaseDevice, DeviceCallbacks
 
 VENDOR_ID = 0x0B0E
 TELEPHONY_REPORT = 0x03
@@ -147,14 +147,13 @@ class Device(BaseDevice):
         self._inputs = JabraInputs()
         self._last_report: Optional[Tuple[int, int, int]] = None
 
-    def open(self, on_button: ButtonCallback, on_hardware_mute: HardwareMuteCallback) -> None:
+    def open(self, callbacks: DeviceCallbacks) -> None:
         """
         Open the speakerphone over HID.
-        :param on_button: Called with the name of a button and whether it went down.
-        :param on_hardware_mute: Called whenever the hardware mute changes.
+        :param callbacks: What the device reports while it runs.
         :raises DriverError: If the device cannot be opened.
         """
-        super().open(on_button, on_hardware_mute)
+        super().open(callbacks)
         try:
             self._hid = self.drivers.hid(VENDOR_ID, self._handle_report)
         except DriverError:

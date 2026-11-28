@@ -53,7 +53,7 @@ class GpioInput:
 
     def __init__(self, pin: int, on_change: Callable[[bool], None], debounce: float = 0.03, chip: Optional[str] = None) -> None:
         gpiod = _import_gpiod()
-        from gpiod.line import Bias, Direction, Edge
+        from gpiod.line import Bias, Direction, Edge  # type: ignore
 
         self._pin = pin
         self._on_change = on_change
@@ -98,7 +98,7 @@ class GpioOutput:
 
     def __init__(self, pin: int, active: bool = True, chip: Optional[str] = None) -> None:
         gpiod = _import_gpiod()
-        from gpiod.line import Direction, Value
+        from gpiod.line import Direction, Value  # type: ignore
 
         chip = chip or find_gpio_chip()
         settings = gpiod.LineSettings(direction=Direction.OUTPUT, output_value=Value.ACTIVE if active else Value.INACTIVE)
@@ -115,7 +115,7 @@ class GpioOutput:
 
 def _import_gpiod() -> Any:
     try:
-        import gpiod
+        import gpiod  # type: ignore
     except ImportError as exc:
         raise DriverError("GPIO: the Python package gpiod is not installed") from exc
     return gpiod

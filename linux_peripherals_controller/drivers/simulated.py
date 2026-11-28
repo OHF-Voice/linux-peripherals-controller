@@ -6,9 +6,12 @@ They let LPC run on a machine without the device, for development and the end-to
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from typing import TYPE_CHECKING, Mapping, Optional, Sequence
 
 from ..appearance import Color
+
+if TYPE_CHECKING:
+    from .satellite1 import PowerContract
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,3 +67,43 @@ class SimulatedHardware:
 
     def close(self) -> None:
         """Nothing to release."""
+
+
+class SimulatedSatellite1(SimulatedLedStrip):
+    """The Satellite1 HAT without ``satellite1d``: a simulated LED ring, nothing can be read and no setting changes."""
+
+    def __init__(self) -> None:
+        super().__init__(24, "Satellite1 LED ring")
+
+    def read_environment(self) -> Mapping[str, Optional[float]]:
+        """Nothing can be read."""
+        return {}
+
+    def mic_muted(self) -> Optional[bool]:
+        """Nothing can be read."""
+        return None
+
+    def line_out_plugged_in(self) -> Optional[bool]:
+        """Nothing can be read."""
+        return None
+
+    def amp_level(self) -> Optional[int]:
+        """Nothing can be read."""
+        return None
+
+    def set_amp_level(self, level: int) -> Optional[int]:
+        """
+        Log the level, nothing changes.
+        :param level: The level.
+        :return: None, the level cannot be read.
+        """
+        _LOGGER.debug("Simulated Satellite1: amplifier level %s", level)
+        return self.amp_level()
+
+    def power_contract(self) -> Optional["PowerContract"]:
+        """Nothing can be read."""
+        return None
+
+    def firmware(self) -> Optional[str]:
+        """Nothing can be read."""
+        return None

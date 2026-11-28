@@ -12,12 +12,12 @@ from linux_peripherals_controller.button_roles import ButtonRole
 from linux_peripherals_controller.device_config import DeviceConfig
 from linux_peripherals_controller.device_runner import DeviceRunner
 from linux_peripherals_controller.device_setup import resolve_device
-from linux_peripherals_controller.device_types import ButtonSpec, DeviceType, LedSpec, SensorSpec
+from linux_peripherals_controller.device_types import ButtonSpec, ControlSpec, DeviceType, LedSpec, SensorKind, SensorSpec
 from linux_peripherals_controller.devices import create_device, get_device_type
 from linux_peripherals_controller.devices.base import BaseDevice
 from linux_peripherals_controller.display import DisplayFunction
 from linux_peripherals_controller.drivers import Drivers
-from linux_peripherals_controller.esphome.entities import BinarySensorEntity, ButtonEventEntity, LightEntity, SensorEntity, SwitchEntity
+from linux_peripherals_controller.esphome.entities import BinarySensorEntity, ButtonEventEntity, LightEntity, NumberEntity, SensorEntity, SwitchEntity, TextSensorEntity
 from linux_peripherals_controller.hardware_mute import HardwareMute, HardwareMuteType
 from linux_peripherals_controller.light import LightState
 from linux_peripherals_controller.lva_protocol import LvaMessage
@@ -30,11 +30,14 @@ class RecordingDevice(BaseDevice):
 
     hardware = HardwareMute()
     sensor_value = None
+    control_value = None
 
     def __init__(self, device, drivers):
         super().__init__(device, drivers)
         self.drawn = []
         self.switched = []
+        self.controls_set = []
+        self.sensors_read = []
 
     def draw(self, display, now):
         self.drawn.append(display)
@@ -50,7 +53,15 @@ class RecordingDevice(BaseDevice):
         self.switched.append(muted)
 
     def read_sensor(self, name):
-        return self.sensor_value
+        self.sensors_read.append(name)
+        return "v1" if name == "firmware" else self.sensor_value
+
+    def read_control(self, name):
+        return self.control_value
+
+    def set_control(self, name, value):
+        self.controls_set.append((name, value))
+        return value
 
 
 TYPE = DeviceType(
@@ -58,7 +69,12 @@ TYPE = DeviceType(
     description="Test device",
     leds=LedSpec("apa102", 3),
     buttons=(ButtonSpec("talk", ButtonRole.ACTION, pin=17), ButtonSpec("volume_up", ButtonRole.VOLUME_UP)),
-    sensors=(SensorSpec("temperature", interval=0.01),),
+    sensors=(
+        SensorSpec("temperature", interval=0.01),
+        SensorSpec("jack", interval=None, kind=SensorKind.BINARY),
+        SensorSpec("firmware", interval=None, kind=SensorKind.TEXT, diagnostic=True),
+    ),
+    controls=(ControlSpec("level", 0, 20),),
 )
 
 
@@ -71,12 +87,13 @@ def make_runner(stored=None, hardware=None, device_type=TYPE):
     return runner, device, saved
 
 
-def attach(runner, link_connected=True, status=None):
+def attach(runner, link_connected=True, status=None, create_entities=True):
     controller = MagicMock()
     controller.link_connected = link_connected
     controller.status = status or LvaStatus(lva_status="connected", state="idle")
     home_assistant = MagicMock()
-    runner.entities()
+    if create_entities:
+        runner.entities()
     runner.attach(controller, home_assistant)
     return controller, home_assistant
 
@@ -91,6 +108,9 @@ class TestEntities:
             (ButtonEventEntity, 2, "volume_up", "Volume up"),
             (SwitchEntity, 3, "child_lock", "Child Lock"),
             (SensorEntity, 4, "temperature", "Temperature"),
+            (BinarySensorEntity, 5, "jack", "Jack"),
+            (TextSensorEntity, 6, "firmware", "Firmware"),
+            (NumberEntity, 7, "level", "Level"),
         ]
 
     def test_no_light_without_leds(self):
@@ -104,6 +124,15 @@ class TestEntities:
         entity = [e for e in runner.entities() if e.object_id == "hardware_mute"][0]
         assert isinstance(entity, entity_class)
         assert entity.state_responses()[0].state
+
+    async def test_read_only_mute_change_updates_the_binary_sensor(self):
+        runner, device, _ = make_runner(hardware=HardwareMute(HardwareMuteType.READ_ONLY, False))
+        runner.open()
+        entity = [e for e in runner.entities() if e.object_id == "hardware_mute"][0]
+        attach(runner, create_entities=False)
+        device.hardware = HardwareMute(HardwareMuteType.READ_ONLY, True)
+        device.report_hardware_mute()
+        assert entity.value is True
 
 
 class TestDisplay:
@@ -203,7 +232,7 @@ class TestSensors:
         runner, device, _ = make_runner()
         runner.open()
         _, home_assistant = attach(runner)
-        task = asyncio.create_task(runner.read_sensors())
+        task = asyncio.create_task(runner.read_values())
         await asyncio.sleep(0.05)
         device.sensor_value = 21.0
         await asyncio.sleep(0.05)
@@ -213,7 +242,63 @@ class TestSensors:
 
     async def test_device_without_sensors_returns_at_once(self):
         runner, _, _ = make_runner(device_type=get_device_type("respeaker_2mic_v1"))
-        await asyncio.wait_for(runner.read_sensors(), 1)
+        await asyncio.wait_for(runner.read_values(), 1)
+
+    async def test_sensor_without_interval_is_read_once(self):
+        runner, device, _ = make_runner()
+        runner.open()
+        entities = runner.entities()
+        attach(runner, create_entities=False)
+        task = asyncio.create_task(runner.read_values())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        assert device.sensors_read.count("firmware") == 1
+        assert device.sensors_read.count("temperature") > 1
+        assert [e for e in entities if e.object_id == "firmware"][0].value == "v1"
+
+    async def test_reported_sensor_is_broadcast_and_a_wrong_kind_is_unknown(self, caplog):
+        runner, device, _ = make_runner()
+        runner.open()
+        entities = runner.entities()
+        _, home_assistant = attach(runner, create_entities=False)
+        jack = [e for e in entities if e.object_id == "jack"][0]
+        with caplog.at_level(logging.DEBUG):
+            device.report_sensor("jack", True)
+        assert jack.value is True
+        home_assistant.broadcast.assert_called_once_with(jack.state_responses())
+        assert "Sensor 'jack' reported by the device: True" in caplog.text
+        device.report_sensor("jack", "yes")
+        assert jack.value is None
+        device.report_sensor("unknown", True)
+
+
+class TestControls:
+    async def test_control_is_read_at_startup_and_set_by_home_assistant(self):
+        runner, device, _ = make_runner()
+        device.control_value = 8.0
+        runner.open()
+        level = [e for e in runner.entities() if e.object_id == "level"][0]
+        _, home_assistant = attach(runner, create_entities=False)
+        task = asyncio.create_task(runner.read_values())
+        await asyncio.sleep(0.02)
+        task.cancel()
+        assert level.value == 8.0
+        home_assistant.broadcast.assert_any_call(level.state_responses())
+        from aioesphomeapi.api_pb2 import NumberCommandRequest  # type: ignore[attr-defined]
+
+        level.handle_command(NumberCommandRequest(key=level.key, state=12))
+        assert device.controls_set == [("level", 12.0)]
+        assert level.value == 12.0
+
+    async def test_unreadable_control_is_warned(self, caplog):
+        runner, _, _ = make_runner()
+        runner.open()
+        runner.entities()
+        attach(runner)
+        task = asyncio.create_task(runner.read_values())
+        await asyncio.sleep(0.02)
+        task.cancel()
+        assert "'level' cannot be read" in caplog.text
 
 
 class TestWithARealDevice:

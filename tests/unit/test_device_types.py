@@ -41,7 +41,13 @@ class TestEveryDeviceType:
     def test_sensors_have_unique_names_and_positive_intervals(self, name):
         sensors = DEVICE_TYPES[name].sensors
         assert len({s.name for s in sensors}) == len(sensors)
-        assert all(s.interval > 0 for s in sensors)
+        assert all(s.interval is None or s.interval > 0 for s in sensors)
+
+    @pytest.mark.parametrize("name", sorted(DEVICE_TYPES))
+    def test_controls_have_unique_names_and_a_range(self, name):
+        controls = DEVICE_TYPES[name].controls
+        assert len({c.name for c in controls}) == len(controls)
+        assert all(c.minimum < c.maximum and c.step > 0 for c in controls)
 
     @pytest.mark.parametrize("name", sorted(DEVICE_TYPES))
     def test_overrides_only_name_offered_functions(self, name):

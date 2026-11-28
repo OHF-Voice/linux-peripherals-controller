@@ -1,4 +1,4 @@
-"""The entities LPC offers to Home Assistant: the light, an event per button, switches, binary sensors and sensors.
+"""The entities LPC offers to Home Assistant: the light, an event per button, switches, sensors (numbers, texts, on/off) and numbers.
 
 Every entity knows how it is listed, what its state is and what a command of Home Assistant does to it. Sending is the business of
 the server. The key of an entity is its place in the list, so entities are only ever appended, never reordered or removed.
@@ -18,13 +18,18 @@ from aioesphomeapi.api_pb2 import (  # type: ignore[attr-defined]
     ListEntitiesBinarySensorResponse,
     ListEntitiesEventResponse,
     ListEntitiesLightResponse,
+    ListEntitiesNumberResponse,
     ListEntitiesSensorResponse,
     ListEntitiesSwitchResponse,
+    ListEntitiesTextSensorResponse,
+    NumberCommandRequest,
+    NumberStateResponse,
     SensorStateResponse,
     SwitchCommandRequest,
     SwitchStateResponse,
+    TextSensorStateResponse,
 )
-from aioesphomeapi.model import ColorMode, EntityCategory, SensorStateClass
+from aioesphomeapi.model import ColorMode, EntityCategory, NumberMode, SensorStateClass
 from google.protobuf import message
 
 from ..light import LightState, apply_light_command
@@ -171,34 +176,128 @@ class SwitchEntity(Entity):
 
 class BinarySensorEntity(Entity):
     """
-    A binary sensor whose state is read from its owner, for a hardware mute that can only be read.
-    :param get_state: Returns the current state.
-    :param icon: Icon in Home Assistant.
+    An on/off sensor, for the hardware mute that can only be read and on/off sensors of the device. Unknown while ``value`` is None.
+    :param icon: Icon in Home Assistant, empty for the default.
+    :param device_class: Device class in Home Assistant, empty for none.
+    :param diagnostic: True to show it under Diagnostic in Home Assistant.
     """
 
-    def __init__(self, key: int, object_id: str, name: str, get_state: Callable[[], bool], icon: str) -> None:
+    def __init__(self, key: int, object_id: str, name: str, icon: str = "", device_class: str = "", diagnostic: bool = False) -> None:
         super().__init__(key, object_id, name)
-        self._get_state = get_state
+        self.value: Optional[bool] = None
         self._icon = icon
+        self._device_class = device_class
+        self._diagnostic = diagnostic
 
     def list_response(self) -> Any:
-        return ListEntitiesBinarySensorResponse(object_id=self.object_id, key=self.key, name=self.name, icon=self._icon, entity_category=EntityCategory.DIAGNOSTIC)
+        return ListEntitiesBinarySensorResponse(object_id=self.object_id, key=self.key, name=self.name, icon=self._icon, device_class=self._device_class, entity_category=_category(self._diagnostic))
 
     def state_responses(self) -> List[message.Message]:
-        return [BinarySensorStateResponse(key=self.key, state=self._get_state())]
+        if self.value is None:
+            return [BinarySensorStateResponse(key=self.key, missing_state=True)]
+        return [BinarySensorStateResponse(key=self.key, state=self.value)]
 
 
 class SensorEntity(Entity):
-    """A sensor of the device, ``unavailable`` while it cannot be read."""
+    """
+    A sensor of the device with a number, ``unavailable`` while ``value`` is None.
+    :param unit: Unit of the value, empty for none.
+    :param device_class: Device class in Home Assistant, empty for none.
+    :param diagnostic: True to show it under Diagnostic in Home Assistant.
+    """
 
-    def __init__(self, key: int, object_id: str, name: str) -> None:
+    def __init__(self, key: int, object_id: str, name: str, unit: str = "", device_class: str = "", diagnostic: bool = False) -> None:
         super().__init__(key, object_id, name)
         self.value: Optional[float] = None
+        self._unit = unit
+        self._device_class = device_class
+        self._diagnostic = diagnostic
 
     def list_response(self) -> Any:
-        return ListEntitiesSensorResponse(object_id=self.object_id, key=self.key, name=self.name, accuracy_decimals=1, state_class=SensorStateClass.MEASUREMENT)
+        return ListEntitiesSensorResponse(
+            object_id=self.object_id,
+            key=self.key,
+            name=self.name,
+            unit_of_measurement=self._unit,
+            device_class=self._device_class,
+            accuracy_decimals=1,
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_category=_category(self._diagnostic),
+        )
 
     def state_responses(self) -> List[message.Message]:
         if self.value is None:
             return [SensorStateResponse(key=self.key, missing_state=True)]
         return [SensorStateResponse(key=self.key, state=self.value)]
+
+
+class TextSensorEntity(Entity):
+    """
+    A sensor of the device with a text (for example a firmware version), unknown while ``value`` is None.
+    :param diagnostic: True to show it under Diagnostic in Home Assistant.
+    """
+
+    def __init__(self, key: int, object_id: str, name: str, diagnostic: bool = False) -> None:
+        super().__init__(key, object_id, name)
+        self.value: Optional[str] = None
+        self._diagnostic = diagnostic
+
+    def list_response(self) -> Any:
+        return ListEntitiesTextSensorResponse(object_id=self.object_id, key=self.key, name=self.name, entity_category=_category(self._diagnostic))
+
+    def state_responses(self) -> List[message.Message]:
+        if self.value is None:
+            return [TextSensorStateResponse(key=self.key, missing_state=True)]
+        return [TextSensorStateResponse(key=self.key, state=self.value)]
+
+
+class NumberEntity(Entity):
+    """
+    A setting of the hardware that Home Assistant can change, unknown while ``value`` is None.
+    :param minimum: Lowest value.
+    :param maximum: Highest value.
+    :param step: Step between two values.
+    :param unit: Unit of the value, empty for none.
+    :param on_command: Called with the value Home Assistant asks for (within the range), returns the value the hardware has then.
+    """
+
+    def __init__(self, key: int, object_id: str, name: str, minimum: float, maximum: float, step: float, unit: str, on_command: Callable[[float], Optional[float]]) -> None:
+        super().__init__(key, object_id, name)
+        self.value: Optional[float] = None
+        self._minimum = minimum
+        self._maximum = maximum
+        self._step = step
+        self._unit = unit
+        self._on_command = on_command
+
+    def list_response(self) -> Any:
+        return ListEntitiesNumberResponse(
+            object_id=self.object_id,
+            key=self.key,
+            name=self.name,
+            min_value=self._minimum,
+            max_value=self._maximum,
+            step=self._step,
+            unit_of_measurement=self._unit,
+            mode=NumberMode.SLIDER,
+            entity_category=EntityCategory.CONFIG,
+        )
+
+    def state_responses(self) -> List[message.Message]:
+        if self.value is None:
+            return [NumberStateResponse(key=self.key, missing_state=True)]
+        return [NumberStateResponse(key=self.key, state=self.value)]
+
+    def handle_command(self, msg: message.Message) -> List[message.Message]:
+        if not isinstance(msg, NumberCommandRequest):
+            return super().handle_command(msg)
+        requested = max(self._minimum, min(self._maximum, float(msg.state)))
+        _LOGGER.debug("%s set by Home Assistant: %s", self.object_id, requested)
+        value = self._on_command(requested)
+        if value is not None:
+            self.value = value
+        return self.state_responses()
+
+
+def _category(diagnostic: bool) -> int:
+    return int(EntityCategory.DIAGNOSTIC if diagnostic else EntityCategory.NONE)

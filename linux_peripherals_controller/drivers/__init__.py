@@ -6,11 +6,15 @@ without the device (``--simulate-hardware``). A device file only asks ``Drivers`
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Optional
 
 from ..device_types import LedSpec
 from .base import Closable, DriverError, HidWriter, LedStrip
-from .simulated import SimulatedHardware, SimulatedLedStrip
+from .simulated import SimulatedHardware, SimulatedLedStrip, SimulatedSatellite1
+
+if TYPE_CHECKING:
+    from .satellite1 import Satellite1Event, Satellite1Link
 
 __all__ = ["Closable", "DriverError", "Drivers", "HidWriter", "LedStrip"]
 
@@ -81,3 +85,16 @@ class Drivers:
         from .hid import HidDevice
 
         return HidDevice(vendor_id, on_report, product_id)
+
+    def satellite1(self, on_event: Callable[["Satellite1Event"], None], socket_path: Optional[Path] = None) -> "Satellite1Link":
+        """
+        Connect to ``satellite1d``, the daemon of the Satellite1 HAT: its LED ring, sensors, settings and events.
+        :param on_event: Called on the event loop with every event of the daemon that LPC uses.
+        :param socket_path: The socket of the daemon, its default path when None.
+        :raises DriverError: If the daemon cannot be used.
+        """
+        if self.simulated:
+            return SimulatedSatellite1()
+        from .satellite1 import DEFAULT_SOCKET_PATH, Satellite1Daemon
+
+        return Satellite1Daemon(on_event, socket_path or DEFAULT_SOCKET_PATH)

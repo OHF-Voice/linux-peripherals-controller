@@ -36,10 +36,33 @@ Every device type is one file in `linux_peripherals_controller/devices/`, named 
 | `respeaker_4mic` | ReSpeaker 4-Mic Array HAT (AC108 codec) | 12 APA102 on SPI0 (`/dev/spidev0.1`), powered by GPIO 5 | none |
 | `respeaker_usb_mic_array` | ReSpeaker USB Mic Array v2.0 (USB `2886:0018`) | 12, set over USB | none |
 | `jabra_speak_410` | Jabra Speak 410 (USB, vendor `0b0e`) | fixed states over HID: green, red, flashing, partly flashing | `call` (`action`), `mute` (`mute`), `volume_up`, `volume_down` |
+| `satellite1` | Satellite1 HAT (FutureProofHomes), through `satellite1d` | 24, set through the daemon | `action` (`action`), `volume_up`, `volume_down` |
 
 The Jabra Speak 410 has no colored LEDs, so `[colors]`, `[patterns]` and `brightness` do not change it, and there is no `LED` light in Home Assistant. It shows: listening green, wake word, thinking and a ringing timer flashing, a reply or an announcement partly flashing, muted red, an error and a lost connection blinking red, everything else off.
 
-A button without a GPIO pin of its own (the Jabra) is read by its device file, so `pin` in the device configuration does not apply to it.
+A button without a GPIO pin of its own (the Jabra, the Satellite1) is read by its device file, so `pin` in the device configuration does not apply to it.
+
+### Satellite1 HAT
+
+The Satellite1 HAT is driven through `satellite1d`, the daemon of the [Satellite1-RPi-SDK](https://github.com/FutureProofHomes/Satellite1-RPi-SDK). The daemon owns the hardware, LPC talks to it over its socket `/run/satellite1/satellite1d.sock`. The SDK has to be installed and the daemon running.
+
+- In `/etc/satellite1.conf` of the daemon, the LED ring must be enabled (`[led_ring] enabled = true`), otherwise LPC exits. Turn off `[workflows.volume-buttons]`, or a volume button changes the volume twice (in the daemon and in LVA). Keep `[lva]` of the daemon disabled, LPC is the connection to LVA. The LED workflows of the daemon (`[workflows.mute-led]`, `[workflows.volume]`, `[workflows.jack-led]`) draw over what LPC shows, turn them off if LPC alone shall drive the LEDs.
+- In Docker, the socket folder is passed to the container (`/run/satellite1:/run/satellite1` in `docker-compose.yml`).
+- The daemon reports only that a button was pressed, not how long: single, double and triple presses work, long presses and the repeat of a held volume button do not.
+- Sensors (`[sensors.<name>] interval` changes how often they are read):
+
+| Sensor | Kind | Read | In Home Assistant |
+|--------|------|------|-------------------|
+| `temperature` | number, °C | every 60 s | sensor |
+| `humidity` | number, % | every 60 s | sensor |
+| `illuminance` | number, lx | every 60 s | sensor |
+| `line_out_jack` | on/off | at startup, then when the daemon reports a change | binary sensor (plug) |
+| `usb_c_voltage` | number, V | every 60 s | sensor, Diagnostic. Unknown without a USB-C power contract. |
+| `usb_c_current` | number, A | every 60 s | sensor, Diagnostic. Unknown without a USB-C power contract. |
+| `xmos_firmware` | text | at startup | text sensor, Diagnostic |
+
+- Control `amplifier_level`: the gain of the speaker amplifier, 0 to 20, a number entity in Home Assistant. Read at startup, kept by the daemon.
+- The microphone mute switch of the HAT is its hardware mute, of the type `read_only`: a `Hardware Mute` binary sensor in Home Assistant, and LVA is told about it (see [behavior.md](behavior.md#hardware-mute)).
 
 ## Device configuration
 

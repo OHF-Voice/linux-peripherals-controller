@@ -4,7 +4,8 @@
 - A press of a button is decided by the device and goes to LVA and to Home Assistant, each on its own.
 - The child lock and the light come from Home Assistant and are stored across restarts.
 - The hardware mute of the device goes to LVA and to Home Assistant, and their requests to switch it go to the device.
-- The sensors of the device are read at their interval and go to Home Assistant.
+- The sensors of the device are read at their interval (or reported by the device) and go to Home Assistant, the controls of the
+  hardware are read at startup and changed by Home Assistant.
 
 Nothing here talks to hardware directly: the device does.
 """
@@ -16,15 +17,16 @@ import dataclasses
 import logging
 import re
 import time
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Union
 
 from .animation import DisplayState, display_amount
 from .button_input import ButtonInput
 from .controller import Controller
 from .device_setup import ResolvedButton, ResolvedSensor
-from .devices.base import BaseDevice
+from .device_types import ControlSpec, SensorKind
+from .devices.base import BaseDevice, DeviceCallbacks, SensorValue
 from .display import DisplayFunction
-from .esphome.entities import BinarySensorEntity, ButtonEventEntity, Entity, LightEntity, SensorEntity, SwitchEntity
+from .esphome.entities import BinarySensorEntity, ButtonEventEntity, Entity, LightEntity, NumberEntity, SensorEntity, SwitchEntity, TextSensorEntity
 from .esphome.server import HomeAssistantServer
 from .hardware_mute import HardwareMute, HardwareMuteEntity, decide_mute_request, entity_for
 from .led_output import LedOutput
@@ -33,6 +35,8 @@ from .lva_status import LvaStatus
 from .state_store import StoredState
 
 _LOGGER = logging.getLogger(__name__)
+
+ValueEntity = Union[SensorEntity, TextSensorEntity, BinarySensorEntity]
 
 
 class DeviceRunner:
@@ -59,8 +63,9 @@ class DeviceRunner:
         self._status = LvaStatus()
         self._hardware_mute = HardwareMute()
         self._button_entities: Dict[str, ButtonEventEntity] = {}
-        self._sensor_entities: Dict[str, SensorEntity] = {}
-        self._hardware_mute_entity: Optional[Entity] = None
+        self._sensor_entities: Dict[str, ValueEntity] = {}
+        self._control_entities: Dict[str, NumberEntity] = {}
+        self._hardware_mute_entity: Optional[Union[SwitchEntity, BinarySensorEntity]] = None
         self._sensors_failed: set[str] = set()
 
     @property
@@ -78,7 +83,7 @@ class DeviceRunner:
         Open the hardware and show that LVA is not connected yet. Call it on the event loop.
         :raises DriverError: If the hardware cannot be opened.
         """
-        self.device.open(self._input.change, self._hardware_mute_changed)
+        self.device.open(DeviceCallbacks(self._input.change, self._hardware_mute_changed, self._sensor_reported))
         self._hardware_mute = self.device.hardware_mute
         self._redraw()
 
@@ -91,8 +96,8 @@ class DeviceRunner:
     def entities(self) -> List[Entity]:
         """
         Create the entities for Home Assistant. Call it once, after ``open()``.
-        :return: The light (if the device has LEDs), an event per button, the child lock, the hardware mute (if the device has one)
-        and a sensor per sensor, in this order.
+        :return: The light (if the device has LEDs), an event per button, the child lock, the hardware mute (if the device has one),
+        a sensor per sensor and a number per control, in this order.
         """
         entities: List[Entity] = []
         if self.device.device.device_type.leds is not None:
@@ -106,13 +111,20 @@ class DeviceRunner:
         if kind == HardwareMuteEntity.SWITCH:
             self._hardware_mute_entity = SwitchEntity(len(entities), "hardware_mute", "Hardware Mute", lambda: self._hardware_mute.muted, self.request_hardware_mute, "mdi:microphone-off")
         elif kind == HardwareMuteEntity.BINARY_SENSOR:
-            self._hardware_mute_entity = BinarySensorEntity(len(entities), "hardware_mute", "Hardware Mute", lambda: self._hardware_mute.muted, "mdi:microphone-off")
+            self._hardware_mute_entity = BinarySensorEntity(len(entities), "hardware_mute", "Hardware Mute", "mdi:microphone-off", diagnostic=True)
+            self._hardware_mute_entity.value = self._hardware_mute.muted
         if self._hardware_mute_entity is not None:
             entities.append(self._hardware_mute_entity)
         for sensor in self.device.device.sensors:
-            sensor_entity = SensorEntity(len(entities), _object_id(sensor.name), _display_name(sensor.name))
+            sensor_entity = _sensor_entity(len(entities), sensor)
             self._sensor_entities[sensor.name] = sensor_entity
             entities.append(sensor_entity)
+        for control in self.device.device.device_type.controls:
+            control_entity = NumberEntity(
+                len(entities), _object_id(control.name), _display_name(control.name), control.minimum, control.maximum, control.step, control.unit, self._control_setter(control)
+            )
+            self._control_entities[control.name] = control_entity
+            entities.append(control_entity)
         return entities
 
     def attach(self, controller: Controller, home_assistant: HomeAssistantServer) -> None:
@@ -125,10 +137,12 @@ class DeviceRunner:
         self._home_assistant = home_assistant
         controller.set_hardware_mute(self._hardware_mute)
 
-    async def read_sensors(self) -> None:
-        """Read every sensor at its interval until the task is cancelled. Returns at once for a device without sensors."""
-        if self.device.device.sensors:
-            await asyncio.gather(*(self._read_sensor(sensor) for sensor in self.device.device.sensors))
+    async def read_values(self) -> None:
+        """
+        Read the controls once and every sensor at its interval, until the task is cancelled. A sensor without an interval is read
+        once. Returns when nothing is left to read.
+        """
+        await asyncio.gather(*(self._read_control(control) for control in self.device.device.device_type.controls), *(self._read_sensor(sensor) for sensor in self.device.device.sensors))
 
     def display_changed(self, function: Optional[DisplayFunction]) -> None:
         """
@@ -178,8 +192,27 @@ class DeviceRunner:
         self._hardware_mute = hardware
         if self._controller is not None:
             self._controller.set_hardware_mute(hardware)
+        if isinstance(self._hardware_mute_entity, BinarySensorEntity):
+            self._hardware_mute_entity.value = hardware.muted
         if self._home_assistant is not None and self._hardware_mute_entity is not None:
             self._home_assistant.broadcast(self._hardware_mute_entity.state_responses())
+
+    def _sensor_reported(self, name: str, value: SensorValue) -> None:
+        _LOGGER.debug("Sensor '%s' reported by the device: %s", name, value)
+        self._update_sensor(name, value)
+
+    def _update_sensor(self, name: str, value: SensorValue) -> None:
+        entity = self._sensor_entities.get(name)
+        if entity is None:
+            return
+        value = _checked_value(entity, value)
+        if value != entity.value:
+            entity.value = value  # type: ignore[assignment]
+            if self._home_assistant is not None:
+                self._home_assistant.broadcast(entity.state_responses())
+
+    def _control_setter(self, control: ControlSpec) -> Callable[[float], Optional[float]]:
+        return lambda value: self.device.set_control(control.name, value)
 
     def _handle_press(self, name: str, press: str) -> None:
         button = self._buttons[name]
@@ -203,7 +236,6 @@ class DeviceRunner:
         self._save(stored)
 
     async def _read_sensor(self, sensor: ResolvedSensor) -> None:
-        entity = self._sensor_entities.get(sensor.name)
         while True:
             value = await asyncio.to_thread(self.device.read_sensor, sensor.name)
             if value is None and sensor.name not in self._sensors_failed:
@@ -211,11 +243,38 @@ class DeviceRunner:
                 self._sensors_failed.add(sensor.name)
             elif value is not None:
                 self._sensors_failed.discard(sensor.name)
-            if entity is not None and value != entity.value:
-                entity.value = value
-                if self._home_assistant is not None:
-                    self._home_assistant.broadcast(entity.state_responses())
+            self._update_sensor(sensor.name, value)
+            if sensor.interval is None:
+                return
             await asyncio.sleep(sensor.interval)
+
+    async def _read_control(self, control: ControlSpec) -> None:
+        value = await asyncio.to_thread(self.device.read_control, control.name)
+        if value is None:
+            _LOGGER.warning("'%s' cannot be read, it is unknown in Home Assistant until it is set", control.name)
+        entity = self._control_entities.get(control.name)
+        if entity is not None and value != entity.value:
+            entity.value = value
+            if self._home_assistant is not None:
+                self._home_assistant.broadcast(entity.state_responses())
+
+
+def _sensor_entity(key: int, sensor: ResolvedSensor) -> ValueEntity:
+    object_id, name = _object_id(sensor.name), _display_name(sensor.name)
+    if sensor.kind == SensorKind.TEXT:
+        return TextSensorEntity(key, object_id, name, sensor.diagnostic)
+    if sensor.kind == SensorKind.BINARY:
+        return BinarySensorEntity(key, object_id, name, device_class=sensor.device_class, diagnostic=sensor.diagnostic)
+    return SensorEntity(key, object_id, name, sensor.unit, sensor.device_class, sensor.diagnostic)
+
+
+def _checked_value(entity: ValueEntity, value: SensorValue) -> SensorValue:
+    """The value if it fits the kind of the entity, else None (unknown)."""
+    if isinstance(entity, BinarySensorEntity):
+        return value if isinstance(value, bool) else None
+    if isinstance(entity, TextSensorEntity):
+        return value if isinstance(value, str) else None
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _object_id(name: str) -> str:

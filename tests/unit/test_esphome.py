@@ -7,22 +7,35 @@ from unittest.mock import MagicMock
 import pytest
 from aioesphomeapi import APIClient
 from aioesphomeapi.api_pb2 import (  # type: ignore[attr-defined]
+    BinarySensorStateResponse,
     DeviceInfoRequest,
     EventResponse,
     LightCommandRequest,
     LightStateResponse,
     ListEntitiesDoneResponse,
     ListEntitiesRequest,
+    NumberCommandRequest,
+    NumberStateResponse,
     SensorStateResponse,
     SubscribeStatesRequest,
     SwitchCommandRequest,
     SwitchStateResponse,
+    TextSensorStateResponse,
 )
-from aioesphomeapi.model import EventInfo, LightInfo, SwitchInfo
+from aioesphomeapi.model import EventInfo, LightInfo, NumberInfo, SwitchInfo
 
 from linux_peripherals_controller.esphome.api_server import create_encryption_key_file, decode_encryption_key, load_encryption_key_file
 from linux_peripherals_controller.esphome.discovery import local_ip_address, service_properties
-from linux_peripherals_controller.esphome.entities import EVENT_TYPES, BinarySensorEntity, ButtonEventEntity, LightEntity, SensorEntity, SwitchEntity
+from linux_peripherals_controller.esphome.entities import (
+    EVENT_TYPES,
+    BinarySensorEntity,
+    ButtonEventEntity,
+    LightEntity,
+    NumberEntity,
+    SensorEntity,
+    SwitchEntity,
+    TextSensorEntity,
+)
 from linux_peripherals_controller.esphome.server import DeviceInfo, HomeAssistantServer
 from linux_peripherals_controller.light import LightState
 
@@ -52,12 +65,41 @@ class TestEntities:
         switch = SwitchEntity(2, "child_lock", "Child Lock", lambda: state["on"], lambda value: state.update(on=value), "mdi:lock")
         assert switch.handle_command(SwitchCommandRequest(key=2, state=True)) == [SwitchStateResponse(key=2, state=True)]
 
-    def test_binary_sensor_reports_its_state(self):
-        sensor = BinarySensorEntity(3, "hardware_mute", "Hardware Mute", lambda: True, "mdi:microphone-off")
-        assert sensor.state_responses()[0].state
+    def test_binary_sensor_is_unknown_until_set(self):
+        sensor = BinarySensorEntity(3, "line_out_jack", "Line out jack", device_class="plug", diagnostic=True)
+        assert sensor.state_responses() == [BinarySensorStateResponse(key=3, missing_state=True)]
+        sensor.value = True
+        assert sensor.state_responses() == [BinarySensorStateResponse(key=3, state=True)]
+        assert (sensor.list_response().device_class, sensor.list_response().entity_category) == ("plug", 2)
+
+    def test_text_sensor_is_unknown_until_set(self):
+        sensor = TextSensorEntity(5, "xmos_firmware", "Xmos firmware", diagnostic=True)
+        assert sensor.state_responses() == [TextSensorStateResponse(key=5, missing_state=True)]
+        sensor.value = "v1.2.0"
+        assert sensor.state_responses() == [TextSensorStateResponse(key=5, state="v1.2.0")]
+        assert sensor.list_response().entity_category == 2
+
+    def test_number_clamps_the_command_and_keeps_the_value_of_the_hardware(self):
+        asked = []
+
+        def set_level(value):
+            asked.append(value)
+            return 20.0
+
+        number = NumberEntity(6, "amplifier_level", "Amplifier level", 0, 20, 1, "", set_level)
+        assert number.state_responses() == [NumberStateResponse(key=6, missing_state=True)]
+        assert number.handle_command(NumberCommandRequest(key=6, state=99)) == [NumberStateResponse(key=6, state=20.0)]
+        assert asked == [20.0]
+        assert (number.list_response().min_value, number.list_response().max_value) == (0, 20)
+
+    def test_number_keeps_its_value_when_the_hardware_answers_nothing(self):
+        number = NumberEntity(6, "amplifier_level", "Amplifier level", 0, 20, 1, "", lambda value: None)
+        number.value = 8.0
+        assert number.handle_command(NumberCommandRequest(key=6, state=3)) == [NumberStateResponse(key=6, state=8.0)]
 
     def test_sensor_is_missing_until_read(self):
-        sensor = SensorEntity(4, "temperature", "Temperature")
+        sensor = SensorEntity(4, "temperature", "Temperature", "°C", "temperature")
+        assert (sensor.list_response().unit_of_measurement, sensor.list_response().device_class) == ("°C", "temperature")
         assert sensor.state_responses() == [SensorStateResponse(key=4, missing_state=True)]
         sensor.value = 21.5
         assert sensor.state_responses() == [SensorStateResponse(key=4, state=21.5)]
@@ -98,11 +140,12 @@ class TestServerMessages:
 
 class TestWithTheClientOfHomeAssistant:
     async def connect(self, noise_psk=None):
-        state = {"locked": False}
+        state = {"locked": False, "level": None}
         entities = [
             LightEntity(0, "led", "LED", LightState(), MagicMock()),
             ButtonEventEntity(1, "button", "Button"),
             SwitchEntity(2, "child_lock", "Child Lock", lambda: state["locked"], lambda value: state.update(locked=value), "mdi:lock"),
+            NumberEntity(3, "amplifier_level", "Amplifier level", 0, 20, 1, "", lambda value: state.update(level=value) or value),
         ]
         server = HomeAssistantServer(INFO, entities, noise_psk)
         port = await server.start("127.0.0.1", 0)
@@ -116,7 +159,7 @@ class TestWithTheClientOfHomeAssistant:
             info = await client.device_info()
             assert (info.name, info.model, info.project_name) == ("lpc-test", "Test device", "Open Home Foundation.Linux Peripheral Controller")
             entities, _ = await client.list_entities_services()
-            assert [type(e) for e in entities] == [LightInfo, EventInfo, SwitchInfo]
+            assert [type(e) for e in entities] == [LightInfo, EventInfo, SwitchInfo, NumberInfo]
         finally:
             await client.disconnect()
             await server.stop()
@@ -128,6 +171,17 @@ class TestWithTheClientOfHomeAssistant:
             client.switch_command(2, True)
             await client.device_info()
             assert state["locked"]
+        finally:
+            await client.disconnect()
+            await server.stop()
+
+    async def test_number_command(self):
+        server, client, state = await self.connect()
+        try:
+            await client.list_entities_services()
+            client.number_command(3, 30)
+            await client.device_info()
+            assert state["level"] == 20.0
         finally:
             await client.disconnect()
             await server.stop()

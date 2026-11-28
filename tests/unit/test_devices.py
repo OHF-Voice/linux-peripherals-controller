@@ -10,7 +10,7 @@ from linux_peripherals_controller.button_roles import ButtonRole
 from linux_peripherals_controller.device_config import DeviceConfig
 from linux_peripherals_controller.device_setup import resolve_device
 from linux_peripherals_controller.devices import DEVICE_TYPES, create_device, get_device_type
-from linux_peripherals_controller.devices.base import BaseDevice
+from linux_peripherals_controller.devices.base import BaseDevice, DeviceCallbacks
 from linux_peripherals_controller.devices.jabra_speak_410 import LED_FLASHING, LED_HOLD, LED_OFF_HOOK, LED_RED, JabraInputs, decode_report, led_report
 from linux_peripherals_controller.display import DisplayFunction
 from linux_peripherals_controller.drivers import DriverError, Drivers
@@ -39,7 +39,7 @@ class TestCreateDevice:
     @pytest.mark.parametrize("name", sorted(DEVICE_TYPES))
     def test_every_device_type_opens_and_closes_simulated(self, name):
         device = create_device(resolved(name), Drivers(simulated=True))
-        device.open(MagicMock(), MagicMock())
+        device.open(DeviceCallbacks())
         device.draw(DisplayState(DisplayFunction.LISTENING, None, LightState()), 0.0)
         device.close()
 
@@ -49,7 +49,7 @@ class TestBaseDevice:
         drivers = fake_drivers()
         device = BaseDevice(resolved("respeaker_2mic_v1"), drivers)
         on_button = MagicMock()
-        device.open(on_button, MagicMock())
+        device.open(DeviceCallbacks(on_button=on_button))
         drivers.led_strip.assert_called_once_with(get_device_type("respeaker_2mic_v1").leds)
         pin, on_change = drivers.gpio_input.call_args.args
         assert pin == 17
@@ -61,7 +61,7 @@ class TestBaseDevice:
         from linux_peripherals_controller.device_config import ButtonConfig
 
         device = BaseDevice(resolved("respeaker_2mic_v1", DeviceConfig(buttons={"button": ButtonConfig(pin=27)})), drivers)
-        device.open(MagicMock(), MagicMock())
+        device.open(DeviceCallbacks())
         assert drivers.gpio_input.call_args.args[0] == 27
 
     def test_failure_releases_what_was_opened(self):
@@ -69,14 +69,14 @@ class TestBaseDevice:
         drivers.gpio_input.side_effect = DriverError("GPIO 17 busy")
         device = BaseDevice(resolved("respeaker_2mic_v1"), drivers)
         with pytest.raises(DriverError):
-            device.open(MagicMock(), MagicMock())
+            device.open(DeviceCallbacks())
         drivers.led_strip.return_value.close.assert_called_once()
         assert device.leds is None
 
     def test_draw_renders_the_pattern_onto_the_leds(self):
         drivers = fake_drivers()
         device = BaseDevice(resolved("respeaker_2mic_v1"), drivers)
-        device.open(MagicMock(), MagicMock())
+        device.open(DeviceCallbacks())
         device.draw(DisplayState(DisplayFunction.MUTED, None, LightState()), 0.0)
         drivers.led_strip.return_value.write.assert_called_once_with((Color(255, 0, 0),) * 3)
 
@@ -87,7 +87,7 @@ class TestBaseDevice:
 
     def test_is_animated_follows_the_pattern(self):
         device = BaseDevice(resolved("respeaker_2mic_v1"), fake_drivers())
-        device.open(MagicMock(), MagicMock())
+        device.open(DeviceCallbacks())
         assert device.is_animated(DisplayState(DisplayFunction.LISTENING, None, LightState()))
         assert not device.is_animated(DisplayState(DisplayFunction.MUTED, None, LightState()))
 
@@ -112,14 +112,14 @@ class TestBaseDevice:
     def test_report_hardware_mute_calls_the_callback(self):
         device = BaseDevice(resolved("respeaker_2mic_v1"), fake_drivers())
         on_hardware_mute = MagicMock()
-        device.open(MagicMock(), on_hardware_mute)
+        device.open(DeviceCallbacks(on_hardware_mute=on_hardware_mute))
         device.report_hardware_mute()
         on_hardware_mute.assert_called_once_with(HardwareMute())
 
     def test_close_closes_everything_once(self):
         drivers = fake_drivers()
         device = BaseDevice(resolved("respeaker_2mic_v1"), drivers)
-        device.open(MagicMock(), MagicMock())
+        device.open(DeviceCallbacks())
         device.close()
         device.close()
         drivers.led_strip.return_value.close.assert_called_once()
@@ -132,7 +132,7 @@ class TestRespeaker4mic:
         order = MagicMock()
         drivers.gpio_output.side_effect = order.power
         drivers.led_strip.side_effect = lambda spec: order.leds(spec.count)
-        create_device(resolved("respeaker_4mic"), drivers).open(MagicMock(), MagicMock())
+        create_device(resolved("respeaker_4mic"), drivers).open(DeviceCallbacks())
         assert order.mock_calls[:2] == [call.power(5, True), call.leds(12)]
 
 
@@ -199,7 +199,7 @@ class TestJabraLeds:
         drivers = fake_drivers()
         device = create_device(resolved("jabra_speak_410"), drivers)
         on_button = MagicMock()
-        device.open(on_button, MagicMock())
+        device.open(DeviceCallbacks(on_button=on_button))
         vendor_id, on_report = drivers.hid.call_args.args
         assert vendor_id == 0x0B0E
         hid = drivers.hid.return_value

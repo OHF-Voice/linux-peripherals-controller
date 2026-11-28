@@ -18,6 +18,7 @@ from aioesphomeapi.api_pb2 import (  # type: ignore[attr-defined]
     LightCommandRequest,
     ListEntitiesDoneResponse,
     ListEntitiesRequest,
+    NumberCommandRequest,
     SubscribeStatesRequest,
     SwitchCommandRequest,
 )
@@ -124,7 +125,7 @@ class HomeAssistantServer:
         elif isinstance(msg, SubscribeStatesRequest):
             for entity in self.entities:
                 yield from entity.state_responses()
-        elif isinstance(msg, (LightCommandRequest, SwitchCommandRequest)):
+        elif isinstance(msg, (LightCommandRequest, NumberCommandRequest, SwitchCommandRequest)):
             target: Optional[Entity] = self.entities[msg.key] if 0 <= msg.key < len(self.entities) else None
             if target is None:
                 _LOGGER.debug("Ignoring a command for the unknown entity key %s", msg.key)

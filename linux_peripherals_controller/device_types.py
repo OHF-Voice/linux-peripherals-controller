@@ -8,6 +8,7 @@ device type lives in its own file in ``devices/``, together with the code that r
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import FrozenSet, Mapping, Optional, Tuple
 
 from .appearance import Color, PatternName
@@ -33,12 +34,45 @@ class ButtonSpec:
     pin: Optional[int] = None
 
 
+class SensorKind(StrEnum):
+    """What a sensor reports: a number, a text or on/off."""
+
+    NUMBER = "number"
+    TEXT = "text"
+    BINARY = "binary"
+
+
 @dataclass(frozen=True)
 class SensorSpec:
-    """A sensor of a device, read every ``interval`` seconds."""
+    """
+    A sensor of a device, read every ``interval`` seconds.
+    :param interval: Seconds between two readings. None reads it once at startup, after that only what the device reports itself.
+    :param unit: Unit of the value in Home Assistant, for example ``°C``.
+    :param device_class: Device class in Home Assistant, for example ``temperature``.
+    :param kind: A number, a text or on/off.
+    :param diagnostic: True for a value about the device itself (firmware, power), shown under Diagnostic in Home Assistant.
+    """
 
     name: str
-    interval: float = 30.0
+    interval: Optional[float] = 30.0
+    unit: str = ""
+    device_class: str = ""
+    kind: SensorKind = SensorKind.NUMBER
+    diagnostic: bool = False
+
+
+@dataclass(frozen=True)
+class ControlSpec:
+    """
+    A setting of the hardware that Home Assistant can change, a number from ``minimum`` to ``maximum`` in ``step``.
+    :param unit: Unit of the value in Home Assistant.
+    """
+
+    name: str
+    minimum: float
+    maximum: float
+    step: float = 1.0
+    unit: str = ""
 
 
 @dataclass(frozen=True)
@@ -50,6 +84,7 @@ class DeviceType:
     leds: Optional[LedSpec] = None
     buttons: Tuple[ButtonSpec, ...] = ()
     sensors: Tuple[SensorSpec, ...] = ()
+    controls: Tuple[ControlSpec, ...] = ()
     functions: FrozenSet[DisplayFunction] = frozenset(DisplayFunction)
     colors: Mapping[DisplayFunction, Color] = field(default_factory=dict)
     patterns: Mapping[DisplayFunction, PatternName] = field(default_factory=dict)
