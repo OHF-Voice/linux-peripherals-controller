@@ -5,7 +5,7 @@ LPC is configured with command line options. In Docker, set the environment vari
 | Option | Environment variable | Default | Description |
 |--------|----------------------|---------|-------------|
 | `--device-type` | `DEVICE_TYPE` | | Type of the device. Required: without it, or with an unknown name, LPC logs the known device types and exits. See [Device types](#device-types). |
-| `--device-config` | `DEVICE_CONFIG` | | TOML file with the settings of this device, see [Device configuration](#device-configuration). Without it the device type is used as it is. In Docker the file is read from the `config` folder next to `docker-compose.yml` (`DEVICE_CONFIG=/config/device.toml`). |
+| `--device-config` | `DEVICE_CONFIG` | | TOML file with the settings of this device, see [Device configuration](#device-configuration). Without it the device type is used as it is. In Docker the file is read from the volume `config` (`DEVICE_CONFIG=/config/device.toml`), see [Installation](install.md). |
 | `--lva-host` | `LVA_HOST` | `localhost` | Host of the LVA peripheral WebSocket API. |
 | `--lva-port` | `LVA_PORT` | `6055` | Port of the LVA peripheral WebSocket API. |
 | `--host` | `HOST` | `0.0.0.0` | Address the ESPHome API for Home Assistant listens on. `0.0.0.0` is every interface. |

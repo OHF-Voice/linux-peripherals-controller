@@ -19,7 +19,16 @@ docker compose logs -f
 
 The container uses `network_mode: host`, so `localhost` reaches LVA when both run on the same machine. If LVA runs on another machine, set `LVA_HOST` in `.env`.
 
-The container runs `privileged`, so it reaches the hardware of every device type: GPIO (`/dev/gpiochip*`), SPI (`/dev/spidev*`), USB (`/dev/bus/usb`) and HID (`/dev/hidraw*`). The child lock, the light and the encryption key are kept in `./data` next to `docker-compose.yml`.
+The container runs `privileged`, so it reaches the hardware of every device type: GPIO (`/dev/gpiochip*`), SPI (`/dev/spidev*`), USB (`/dev/bus/usb`) and HID (`/dev/hidraw*`). The child lock, the light and the encryption key are kept in the volume `data` (`/data` in the container).
+
+The device configuration is read from the volume `config` (`/config` in the container). Docker stores it on the host, for example in `/var/lib/docker/volumes/linux-peripherals-controller_config/_data` (`linux-peripherals-controller` is the name of the compose project, taken from the folder, check it with `docker volume ls`). Create the volume with `docker compose up -d`, copy your `device.toml` there, set `DEVICE_CONFIG="/config/device.toml"` in `.env` and restart:
+
+```sh
+sudo cp device.toml /var/lib/docker/volumes/linux-peripherals-controller_config/_data/
+docker compose up -d --force-recreate
+```
+
+Show the encryption key with `docker compose exec linux-peripherals-controller cat /data/encryption.key`.
 
 For the Satellite1 HAT, install the [Satellite1-RPi-SDK](https://github.com/FutureProofHomes/Satellite1-RPi-SDK) first and uncomment the `/run/satellite1` volume in `docker-compose.yml`, see [Satellite1 HAT](configuration.md#satellite1-hat).
 
