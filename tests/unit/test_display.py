@@ -40,14 +40,24 @@ class TestNoConnection:
     def test_lva_is_not_connected_to_home_assistant(self):
         assert select(with_status(lva_status="disconnected")) == DisplayFunction.NO_CONNECTION
 
-    def test_wins_over_everything(self):
-        status = with_status(lva_status="disconnected", timer_status="ringing", state="listening")
+    def test_link_down_wins_over_everything(self):
+        status = with_status(timer_status="ringing", state="listening")
+        assert select(status, link=False) == DisplayFunction.NO_CONNECTION
+
+    def test_lva_without_home_assistant_wins_over_everything_but_a_ringing_timer(self):
+        status = with_status(lva_status="disconnected", timer_status="active", state="listening", muted=True)
         assert select(status) == DisplayFunction.NO_CONNECTION
+
+    def test_ringing_timer_wins_over_lva_without_home_assistant(self):
+        assert select(with_status(lva_status="disconnected", timer_status="ringing")) == DisplayFunction.TIMER_RINGING
 
 
 class TestPriority:
     def test_nothing_to_show_is_the_background(self):
         assert select() is None
+
+    def test_paused_timer_has_no_function(self):
+        assert select(with_status(timer_status="paused")) is None
 
     def test_ringing_timer_wins_over_the_pipeline(self):
         assert select(with_status(timer_status="ringing", state="listening")) == DisplayFunction.TIMER_RINGING
